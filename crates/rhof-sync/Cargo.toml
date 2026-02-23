@@ -1,0 +1,10 @@
+[package]
+name = "rhof-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rhof-core = { path = "../rhof-core" }
+rhof-storage = { path = "../rhof-storage" }
+rhof-adapters = { path = "../rhof-adapters" }

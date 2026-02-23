@@ -1,0 +1,8 @@
+[package]
+name = "rhof-storage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rhof-core = { path = "../rhof-core" }

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: rhof-postgres
+    restart: unless-stopped
+    ports:
+      - "5400:5432"
+    environment:
+      POSTGRES_USER: rhof
+      POSTGRES_PASSWORD: rhof
+      POSTGRES_DB: rhof
+    volumes:
+      - rhof-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rhof -d rhof"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  rhof-postgres-data:

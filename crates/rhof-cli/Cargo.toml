@@ -1,0 +1,16 @@
+[package]
+name = "rhof-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rhof-cli"
+path = "src/main.rs"
+
+[dependencies]
+rhof-core = { path = "../rhof-core" }
+rhof-storage = { path = "../rhof-storage" }
+rhof-adapters = { path = "../rhof-adapters" }
+rhof-sync = { path = "../rhof-sync" }
+rhof-web = { path = "../rhof-web" }

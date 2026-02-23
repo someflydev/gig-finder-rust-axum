@@ -1,0 +1,42 @@
+sources:
+  - source_id: appen-crowdgen
+    display_name: Appen CrowdGen
+    enabled: true
+    crawlability: PublicHtml
+    mode: crawler
+    listing_urls:
+      - https://crowdgen.com/jobs/
+    notes: Initial public listing source; verify selectors against fixtures.
+
+  - source_id: clickworker
+    display_name: Clickworker
+    enabled: true
+    crawlability: PublicHtml
+    mode: crawler
+    listing_urls:
+      - https://www.clickworker.com/clickworker-job/
+
+  - source_id: oneforma-jobs
+    display_name: OneForma Jobs
+    enabled: true
+    crawlability: PublicHtml
+    mode: crawler
+    listing_urls:
+      - https://jobs.oneforma.com/
+
+  - source_id: telus-ai-community
+    display_name: TELUS AI Community
+    enabled: true
+    crawlability: PublicHtml
+    mode: crawler
+    listing_urls:
+      - https://www.telusdigital.com/careers/ai-community
+    notes: Public pages only; no login bypass.
+
+  - source_id: prolific
+    display_name: Prolific (Studies)
+    enabled: true
+    crawlability: ManualOnly
+    mode: manual
+    listing_urls: []
+    notes: Manual ingestion for study opportunities.
