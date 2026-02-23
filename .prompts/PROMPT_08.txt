@@ -20,3 +20,9 @@ Plotly JSON returned by backend.
 Web port = RHOF_WEB_PORT (default 8000).
 
 Add handler smoke tests.
+
+Outputs / Verification:
+- Routes render successfully with Askama templates and serve `assets/static/app.css`
+- HTMX partial routes (`/opportunities/table`, `/opportunities/facets`) return partial-friendly HTML responses
+- `/reports/chart` returns backend-generated Plotly JSON payload
+- Handler smoke tests cover route registration + representative success paths

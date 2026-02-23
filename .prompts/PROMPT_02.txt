@@ -2,6 +2,9 @@ Define the canonical domain model.
 
 Implement in rhof-core:
 
+Also define `OpportunityDraft` in `rhof-core` as the parsed/pre-normalized handoff type used by adapters/sync
+(keep it minimal but explicit so PROMPT_04/PROMPT_05 share one contract).
+
 Field<T> wrapper:
 - value: Option<T>
 - evidence: Option<EvidenceRef>

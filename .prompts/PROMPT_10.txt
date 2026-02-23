@@ -20,11 +20,19 @@ Requirements:
    - Must include extractor_version string
 
 3. Implement full adapter for each additional source:
+   Implement all sources listed in `sources.yaml`, in chunks of 3-5 sources per iteration.
+   Use the `sources.yaml` schema defined in PROMPT_01 to drive chunk planning and status tracking.
    For each source added:
    - Add fixture HTML
    - Implement parsing
    - Add tests
    - Ensure evidence coverage ≥ 90% of extracted fields
+
+   Execution guidance:
+   - After each chunk, run tests and fix regressions before starting the next chunk
+   - After chunk 1, require one successful end-to-end local sync + report generation + web smoke test before continuing to chunk 2+
+   - If a source is gated/manual-only, implement the manual ingestion path and fixtures instead of login-based scraping
+   - Document deferred/blocked sources in docs/SOURCES.md only if they are not publicly crawlable without violating rules
 
 4. Provide Adapter Quality Checklist in docs:
    - ToS-safe?
@@ -38,6 +46,8 @@ Requirements:
    - Fail build if new adapter has no fixtures
    - Fail build if parse tests missing
 
+   Extend the CI workflow introduced in PROMPT_09 (do not replace it).
+
 6. Document expansion workflow in RUNBOOK.md:
    - Add to sources.yaml
    - Implement adapter
@@ -50,3 +60,8 @@ Deliver complete code for:
 - new-adapter CLI generator
 - template files
 - CI enforcement logic (basic check script acceptable)
+
+Outputs / Verification:
+- Adapter generator command works for a sample source_id
+- CI checks fail when fixture/test requirements are missing
+- Chunked adapter expansion progresses with passing tests between chunks

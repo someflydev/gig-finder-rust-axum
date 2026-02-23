@@ -4,8 +4,8 @@ Requirements:
 - SHA256 content hashing
 - Deduplicate identical artifacts
 - Atomic write (temp file + rename)
-- Directory pattern:
-  artifacts/YYYYMMDD_HHMMSS/source_id/hash.ext
+- Directory pattern (under `ARTIFACTS_DIR`):
+  $ARTIFACTS_DIR/YYYYMMDD_HHMMSS/source_id/hash.ext
 
 HTTP client:
 - reqwest client builder
@@ -25,3 +25,7 @@ Write tests for:
 - artifact hashing
 - atomic writes
 - backoff logic
+
+Outputs / Verification:
+- Implement storage + HTTP fetch utilities in the appropriate workspace crates
+- `cargo test` covers the required storage/backoff behaviors

@@ -1,0 +1,47 @@
+---
+Round: 1
+Timestamp: 2026-02-23T21:40:42Z
+Summary: Clarified repo-root generation behavior, reduced sequencing ambiguity across sync/dedup/CLI/CI prompts, and bounded PROMPT_10 adapter expansion execution strategy.
+Changes Applied:
+- .prompts/PROMPT_00_s.txt :: changed generation target to current repo root and forbade nested git init :: prevent nested repo/workspace conflict in actual RHOF repo :: PF-001
+- .prompts/PROMPT_01.txt :: made repository layout root-relative and explicit about no nested `rhof/` dir :: align workspace layout with repo-root generation :: PF-001
+- .prompts/PROMPT_02.txt :: added explicit `OpportunityDraft` ownership in `rhof-core` :: avoid cross-prompt type drift between adapters and sync pipeline :: PF-005
+- .prompts/PROMPT_03.txt :: made artifact path pattern relative to `ARTIFACTS_DIR`; added outputs/verification bullets :: prevent config/path drift and improve execution clarity :: PF-008, PF-010
+- .prompts/PROMPT_04.txt :: added outputs/verification bullets and source-choice documentation note :: improve execution readiness and reduce ambiguity :: PF-010, PF-011
+- .prompts/PROMPT_05.txt :: added scope note deferring dedup/rules behavior to PROMPT_06; referenced `OpportunityDraft`; added verification bullets :: fix sequencing hazard and clarify implementation seam :: PF-002, PF-005, PF-010
+- .prompts/PROMPT_07.txt :: clarified `report` subcommand is introduced here and extended later :: prevent duplicate CLI trees :: PF-009
+- .prompts/PROMPT_09.txt :: clarified CLI extension behavior and defined `seed` as fixture-derived storage seeding with deterministic inputs :: resolve seed command ambiguity and CLI overlap :: PF-006, PF-009
+- .prompts/PROMPT_10.txt :: bounded source expansion to all `sources.yaml` entries in chunks of 3-5, added chunk execution guidance, CI extension note, and verification bullets :: reduce unbounded scope and CI duplication risk while preserving intent :: PF-003, PF-010, PF-012
+Notes / Followups:
+- Manual ingestion JSON schema remains undefined (`manual/<source_id>/*.json`), which may still cause implementation variance.
+- PROMPT_04 still leaves a source choice ambiguity (`TELUS AI Community or RWS TrainAI`) unless explicitly pinned.
+---
+---
+Round: 2
+Timestamp: 2026-02-23T21:45:32Z
+Summary: Added authoritative `sources.yaml` contract, unified fixture bundle schema for manual ingestion + seed, pinned TELUS, and tightened gating/verification in dedup/web/adapter expansion prompts.
+Changes Applied:
+- .prompts/PROMPT_01.txt :: added minimal `sources.yaml` schema contract and consistency rule :: remove hidden dependency across sync and adapter-expansion prompts :: PF-013
+- .prompts/PROMPT_04.txt :: pinned source choice to TELUS AI Community; defined unified manual/fixture JSON schema; clarified shared fixture-bundle reuse :: reduce source ambiguity and prevent manual/seed schema drift :: PF-011, PF-007
+- .prompts/PROMPT_05.txt :: required reading enabled sources from `sources.yaml` schema defined in PROMPT_01 :: align sync pipeline with authoritative source registry contract :: PF-013
+- .prompts/PROMPT_06.txt :: added outputs/verification bullets for pipeline integration and rule-file loading :: reduce integration ambiguity with PROMPT_05 hooks :: PF-015
+- .prompts/PROMPT_08.txt :: added outputs/verification bullets for HTMX partials, asset serving, Plotly JSON, and route smoke coverage :: improve web execution readiness and testability :: PF-014
+- .prompts/PROMPT_09.txt :: tied `seed` to unified fixture bundle format and provenance-preserving import behavior :: make seed behavior durable and compatible with adapter/manual fixtures :: PF-007
+- .prompts/PROMPT_10.txt :: linked chunk planning to `sources.yaml` schema and added mandatory chunk-1 vertical-slice gate :: reduce large-scope regression risk while preserving all-source intent :: PF-004, PF-013
+Notes / Followups:
+- Prompt set is now substantially clearer, but first-run scope remains intentionally large; success depends on honoring chunk/test gates in PROMPT_10.
+- Could still add tiny examples for `sources.yaml` and fixture bundle docs later if implementers struggle, but not required for initial run.
+---
+---
+Round: 3
+Timestamp: 2026-02-23T21:49:38Z
+Summary: Finalized canonical `sources.yaml` top-level shape, made `seed` explicitly idempotent by hashes/keys, and tightened fixture layout + adapter trait guidance for long-term maintainability.
+Changes Applied:
+- .prompts/PROMPT_00_s.txt :: reworded greenfield statement to match generation inside existing repo :: remove minor wording contradiction after repo-root decision :: PF-019
+- .prompts/PROMPT_01.txt :: pinned `sources.yaml` to canonical top-level `sources:` list and required consistency :: eliminate config-shape drift across prompts :: PF-016
+- .prompts/PROMPT_04.txt :: added minimal adapter method signature guidance and canonical fixture directory layout; clarified raw artifact path relativity :: reduce implementation variance and fixture path ambiguity :: PF-017, PF-020
+- .prompts/PROMPT_09.txt :: required seed idempotency via content hashes + stable keys :: prevent duplicate imports on repeated seed runs :: PF-018
+Notes / Followups:
+- Prompt set appears preflight-ready; remaining risk is execution scale, not prompt ambiguity.
+- If desired later, add tiny example YAML/fixture snippets in docs, but prompts are now sufficiently constrained for first run.
+---

@@ -7,6 +7,16 @@ CLI commands:
 - seed
 - debug
 
+Extend the existing CLI introduced earlier (including `report` from PROMPT_07); do not reimplement a separate command tree.
+
+`seed` command behavior:
+- Seed data storage from checked-in fixture-derived data (raw artifacts + parsed records)
+- Prefer accurate fixture-derived data over synthetic demo rows
+- Keep seed inputs deterministic and documented
+- Reuse the unified fixture bundle format defined in PROMPT_04 (do not create a second seed-only schema)
+- Seed should import raw artifacts + parsed records in a way that preserves provenance/evidence linkage
+- Seed import must be idempotent using content hashes + stable keys (re-running seed should not duplicate artifacts/opportunities)
+
 GitHub Actions:
 - fmt
 - clippy (deny warnings)

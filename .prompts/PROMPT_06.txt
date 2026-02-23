@@ -17,3 +17,8 @@ Tests required for:
 - true match
 - false positive
 - borderline cluster
+
+Outputs / Verification:
+- Dedup logic integrates with the pipeline stages/hooks introduced in PROMPT_05
+- Rules are loaded from `rules/tags.yaml`, `rules/risk.yaml`, and `rules/pay.yaml` (not hardcoded)
+- `cargo test` covers dedup confidence/review threshold behavior and rule application basics

@@ -1,10 +1,11 @@
 Create the full Cargo workspace.
 
 Workspace name: rhof
+Target location: current repository root (no nested `rhof/` directory)
 
 Repository layout:
 
-rhof/
+./
   crates/
     rhof-core/
     rhof-storage/
@@ -33,6 +34,22 @@ rhof/
     tags.yaml
     risk.yaml
     pay.yaml
+
+`sources.yaml` (authoritative source registry) minimal schema:
+- top-level `sources:` list of source entries (canonical shape)
+- per source required fields:
+  - source_id (stable slug, filesystem-safe)
+  - display_name
+  - enabled (bool)
+  - crawlability (PublicHtml | Api | Rss | Gated | ManualOnly)
+  - mode (crawler | manual)
+  - listing_urls (list; empty allowed for manual-only sources)
+- per source optional fields:
+  - detail_url_patterns
+  - rate_limit (requests/min or equivalent config object)
+  - notes
+
+All later prompts that read `sources.yaml` must use this schema consistently (including the top-level `sources:` key).
 
 DOCKER
 - Postgres container

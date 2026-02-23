@@ -1,5 +1,9 @@
 Implement full sync pipeline.
 
+Scope note:
+- In this prompt, implement the end-to-end pipeline orchestration and integration points.
+- Wire dedup + enrichment as explicit stages/interfaces, but complete the dedup/rules engine behavior in PROMPT_06.
+
 Steps:
 1. Create FetchRun row.
 2. Iterate enabled sources.
@@ -12,6 +16,9 @@ Steps:
 9. Upsert + version tracking.
 10. Produce run summary.
 
+Use the shared `OpportunityDraft` contract from `rhof-core` for adapter parse output.
+Read enabled sources from `sources.yaml` using the schema defined in PROMPT_01.
+
 Write outputs:
 reports/<run_id>/daily_brief.md
 reports/<run_id>/opportunities_delta.json
@@ -22,3 +29,7 @@ Scheduler:
 - Controlled by RHOF_SCHEDULER_ENABLED
 
 Ensure idempotency.
+
+Outputs / Verification:
+- A runnable sync command/path executes the staged pipeline end-to-end
+- Dedup/enrichment hooks are present and invoked (full rules/dedup logic lands in PROMPT_06)

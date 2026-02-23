@@ -9,6 +9,10 @@ trait SourceAdapter {
     fn parse_detail(...)
 }
 
+Signature guidance:
+- Use explicit `Result<...>` return types for fetch/parse methods (compatible with repo error strategy using anyhow/thiserror)
+- Keep parse methods deterministic against checked-in fixtures
+
 Crawlability:
 - PublicHtml
 - Api
@@ -21,7 +25,7 @@ Adapters to implement:
 1. Appen CrowdGen
 2. Clickworker
 3. OneForma Jobs
-4. TELUS AI Community or RWS TrainAI (public pages only)
+4. TELUS AI Community (public pages only)
 5. Prolific (manual ingestion for studies)
 
 Rules:
@@ -33,5 +37,35 @@ Rules:
 Manual ingestion format:
 manual/<source_id>/*.json
 
+Use a unified fixture bundle format for manual ingestion + seed data + adapter regression assets
+(so one checked-in dataset can support parsing tests and storage seeding long-term).
+
+Canonical fixture layout convention:
+- `fixtures/<source_id>/<fixture_id>/bundle.json` (metadata + parsed records)
+- `fixtures/<source_id>/<fixture_id>/raw/` (one or more checked-in raw artifacts, e.g. `listing.html`, `detail.html`, `response.json`)
+- `manual/<source_id>/` may contain symlinks/copies/wrappers that point to the same bundle format, but the schema stays identical
+
+Manual/fixture JSON minimal schema (per file):
+- fixture_id: string
+- source_id: string
+- crawlability: "Gated" | "ManualOnly" | "PublicHtml" | "Api" | "Rss"
+- captured_from_url: string
+- fetched_at: ISO-8601 timestamp
+- extractor_version: string
+- raw_artifact:
+  - content_type: string
+  - path: relative path to checked-in raw artifact file (preferred, relative to bundle location) OR inline_text
+  - sha256: string (if known; compute if missing during seed/import)
+- parsed_records: list of parsed opportunity records (fixture-derived)
+- evidence_coverage_percent: number
+- notes: optional string
+
+Each parsed record must include provenance-compatible evidence fields sufficient to build `Field<T>` + `EvidenceRef`.
+
 After implementation:
 - cargo test must pass
+
+Outputs / Verification:
+- Implement adapter trait + crawlability enum in a shared crate used by sync
+- Add fixtures + snapshot tests for each implemented adapter
+- Adapter tests and manual ingestion can consume the unified fixture bundle layout without duplicating schemas

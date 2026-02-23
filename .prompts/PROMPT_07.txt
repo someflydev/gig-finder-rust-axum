@@ -9,4 +9,6 @@ After each run:
 Implement CLI:
 rhof report daily --runs N
 
+This prompt introduces the `report` subcommand in the shared CLI; PROMPT_09 extends the same CLI with additional commands.
+
 DuckDB integration optional but Parquet mandatory.

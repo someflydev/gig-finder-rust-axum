@@ -10,14 +10,14 @@ It is the Rust/Axum implementation of the architecture designed in gig-finder-ba
 EXECUTION CONTRACT
 ================================================================================
 
-This is a greenfield repository generation task.
+This is a greenfield codebase generation task within this repository.
 
 You MUST:
-- Create a new folder named `rhof`
-- Initialize a git repository
+- Generate the RHOF project at the current repository root (do NOT create a nested `rhof/` folder)
+- Use the existing git repository (do NOT initialize a nested git repository)
 - Create a Cargo workspace
 - Write ALL files described
-- Not assume any pre-existing files
+- Preserve the `.prompts/` directory and any pre-existing prompt/log files
 - Run `cargo build` after each major phase
 - Fix compile errors before proceeding
 - Ensure `just dev` and `just test` succeed at completion
