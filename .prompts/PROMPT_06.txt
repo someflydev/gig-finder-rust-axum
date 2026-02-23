@@ -1,0 +1,19 @@
+Implement dedup and rules engine.
+
+Dedup:
+- canonical_key normalization
+- jaro-winkler similarity
+- cluster confidence score
+- review queue threshold
+
+Rules:
+- rules/tags.yaml
+- rules/risk.yaml
+- rules/pay.yaml
+
+Rules must be data-driven, not hardcoded.
+
+Tests required for:
+- true match
+- false positive
+- borderline cluster

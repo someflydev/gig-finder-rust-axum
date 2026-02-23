@@ -1,0 +1,22 @@
+Implement Axum web server.
+
+Routes:
+GET /
+GET /opportunities
+GET /opportunities/table
+GET /opportunities/facets
+GET /opportunities/:id
+GET /sources
+GET /review
+POST /review/:id/resolve
+GET /reports
+GET /reports/chart
+
+Use Askama templates.
+Serve assets/static/app.css.
+HTMX for filtering + pagination.
+Plotly JSON returned by backend.
+
+Web port = RHOF_WEB_PORT (default 8000).
+
+Add handler smoke tests.

@@ -1,0 +1,78 @@
+Create the full Cargo workspace.
+
+Workspace name: rhof
+
+Repository layout:
+
+rhof/
+  crates/
+    rhof-core/
+    rhof-storage/
+    rhof-adapters/
+    rhof-sync/
+    rhof-web/
+    rhof-cli/
+  assets/
+    tailwind/
+      input.css
+      tailwind.config.js
+    static/
+      app.css
+  docs/
+    ARCHITECTURE.md
+    DATA_MODEL.md
+    SOURCES.md
+    RUNBOOK.md
+  migrations/
+  docker-compose.yml
+  justfile
+  .env.example
+  README.md
+  sources.yaml
+  rules/
+    tags.yaml
+    risk.yaml
+    pay.yaml
+
+DOCKER
+- Postgres container
+- Host port: 5400
+- Persistent volume
+- Credentials:
+    user=rhof
+    password=rhof
+    db=rhof
+
+.env.example must contain:
+
+DATABASE_URL=postgres://rhof:rhof@localhost:5400/rhof
+ARTIFACTS_DIR=./artifacts
+RHOF_WEB_PORT=8000
+RHOF_SCHEDULER_ENABLED=false
+SYNC_CRON_1=0 6 * * *
+SYNC_CRON_2=0 18 * * *
+RHOF_HTTP_TIMEOUT_SECS=20
+RHOF_USER_AGENT=rhof-bot/0.1
+
+TAILWIND
+- Standalone binary workflow
+- just tailwind builds input.css → assets/static/app.css
+- No Node dependency
+
+JUSTFILE
+Include:
+- dev
+- db-up
+- db-down
+- migrate
+- sqlx-prepare
+- sync
+- serve
+- test
+- fmt
+- lint
+- tailwind
+
+After generation:
+- cargo build
+- fix errors

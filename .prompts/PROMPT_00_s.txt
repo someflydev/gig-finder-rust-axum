@@ -1,0 +1,111 @@
+You are building a production-grade system called:
+
+    RHOF — Remote Hourly Opportunity Finder
+
+This repository is: gig-finder-rust-axum
+
+It is the Rust/Axum implementation of the architecture designed in gig-finder-base.
+
+================================================================================
+EXECUTION CONTRACT
+================================================================================
+
+This is a greenfield repository generation task.
+
+You MUST:
+- Create a new folder named `rhof`
+- Initialize a git repository
+- Create a Cargo workspace
+- Write ALL files described
+- Not assume any pre-existing files
+- Run `cargo build` after each major phase
+- Fix compile errors before proceeding
+- Ensure `just dev` and `just test` succeed at completion
+
+This is not pseudocode. This must be a real, compiling, runnable system.
+
+================================================================================
+STACK (FIXED)
+================================================================================
+
+Language: Rust 2021
+
+Web:
+- Axum
+- Askama templates (server-rendered)
+- HTMX (HTML-over-the-wire)
+- Tailwind via standalone tailwindcss binary (NO Node toolchain)
+
+Runtime:
+- Tokio
+
+Database:
+- Postgres (canonical store)
+- sqlx (migrations + query macros)
+- Host port: 5400 (never default 5432)
+
+Snapshots:
+- Parquet (arrow + parquet crates)
+
+Scheduler:
+- tokio-cron-scheduler
+
+CLI:
+- clap
+
+HTTP:
+- reqwest (gzip + brotli enabled)
+- timeouts + retries + backoff
+
+Parsing:
+- scraper crate (CSS selectors)
+- regex only for structured extraction (e.g. pay parsing)
+
+Logging:
+- tracing + tracing-subscriber
+
+Errors:
+- anyhow + thiserror
+
+IDs:
+- uuid
+
+Time:
+- chrono
+
+================================================================================
+PORT POLICY
+================================================================================
+
+- Postgres container: 5432 (internal) → 5400 (host)
+- Web server: default 8000 (configurable via RHOF_WEB_PORT)
+- No service may bind to default system ports
+- All ports configurable via environment variables
+
+================================================================================
+MISSION
+================================================================================
+
+1. Discover reputable sources of remote hourly/flexible paid work.
+2. Sync twice daily (06:00 and 18:00 America/Chicago).
+3. For each source:
+    fetch → store immutable raw artifact → parse → normalize → dedupe → enrich → version → persist.
+4. Every canonical field MUST include provenance evidence.
+5. Provide HTMX-first UI with data provenance visibility.
+6. Generate Parquet snapshots per run.
+7. Remain ToS-safe (no login bypass).
+
+================================================================================
+NON-NEGOTIABLE PRINCIPLES
+================================================================================
+
+- Immutable raw artifacts
+- Evidence on every extracted field
+- Change tracking via OpportunityVersion
+- Dedup clustering with confidence scores
+- Review queue for low-confidence clusters
+- Data-driven enrichment rules
+- Adapter framework must require fixtures and tests
+- sqlx prepare workflow documented
+
+All assumptions must be documented.

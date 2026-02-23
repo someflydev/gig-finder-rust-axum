@@ -1,0 +1,61 @@
+Define the canonical domain model.
+
+Implement in rhof-core:
+
+Field<T> wrapper:
+- value: Option<T>
+- evidence: Option<EvidenceRef>
+
+EvidenceRef:
+- raw_artifact_id: UUID
+- source_url: String
+- selector_or_pointer: String
+- snippet: String
+- fetched_at: DateTime<Utc>
+- extractor_version: String
+
+Opportunity must include Field-wrapped values for:
+- title
+- description
+- pay_model
+- pay_rate_min
+- pay_rate_max
+- currency
+- min_hours_per_week
+- verification_requirements
+- geo_constraints
+- one_off_vs_ongoing
+- payment_methods
+- apply_url
+- requirements
+
+Justification:
+Every canonical value must be audit-traceable.
+
+Implement Postgres schema via sqlx migrations:
+
+Tables:
+- sources
+- fetch_runs
+- raw_artifacts
+- opportunities
+- opportunity_versions
+- tags
+- opportunity_tags
+- risk_flags
+- opportunity_risk_flags
+- dedup_clusters
+- dedup_cluster_members
+- review_items
+
+Indexes:
+- opportunities.canonical_key
+- opportunities.apply_url
+- raw_artifacts.content_hash
+- opportunity_versions.created_at
+
+Use jsonb for diff_json.
+
+After migration:
+- cargo build
+- run migrate

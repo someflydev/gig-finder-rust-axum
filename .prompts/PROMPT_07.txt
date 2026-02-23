@@ -1,0 +1,12 @@
+After each run:
+- Export Parquet for:
+    opportunities
+    opportunity_versions
+    tags
+    sources
+- Write manifest.json with schema_version + file hashes.
+
+Implement CLI:
+rhof report daily --runs N
+
+DuckDB integration optional but Parquet mandatory.

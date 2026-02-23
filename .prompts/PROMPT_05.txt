@@ -1,0 +1,24 @@
+Implement full sync pipeline.
+
+Steps:
+1. Create FetchRun row.
+2. Iterate enabled sources.
+3. Fetch listing pages.
+4. Store raw artifacts.
+5. Parse into OpportunityDraft.
+6. Normalize canonical_key.
+7. Deduplicate.
+8. Enrich.
+9. Upsert + version tracking.
+10. Produce run summary.
+
+Write outputs:
+reports/<run_id>/daily_brief.md
+reports/<run_id>/opportunities_delta.json
+
+Scheduler:
+- tokio-cron-scheduler
+- Cron expressions from config
+- Controlled by RHOF_SCHEDULER_ENABLED
+
+Ensure idempotency.

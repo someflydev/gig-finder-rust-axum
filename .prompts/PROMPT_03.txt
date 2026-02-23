@@ -1,0 +1,27 @@
+Implement immutable artifact storage.
+
+Requirements:
+- SHA256 content hashing
+- Deduplicate identical artifacts
+- Atomic write (temp file + rename)
+- Directory pattern:
+  artifacts/YYYYMMDD_HHMMSS/source_id/hash.ext
+
+HTTP client:
+- reqwest client builder
+- gzip + brotli
+- timeout configurable
+- retry with exponential backoff
+- classify retryable errors
+
+Rate limiting:
+- global semaphore
+- per-source semaphore
+- optional simple token bucket
+
+All fetches must emit tracing spans with run_id and source_id.
+
+Write tests for:
+- artifact hashing
+- atomic writes
+- backoff logic

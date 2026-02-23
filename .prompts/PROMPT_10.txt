@@ -1,0 +1,52 @@
+Design and implement a scalable adapter expansion framework.
+
+Goal:
+Allow adding new source adapters with high rigor and low regression risk.
+
+Requirements:
+
+1. Adapter template generator:
+   - Provide a `rhof-cli new-adapter <source_id>` command
+   - Generates:
+       - adapter skeleton file
+       - fixtures directory
+       - test skeleton
+       - documentation stub in docs/SOURCES.md
+
+2. Enforce adapter contract:
+   - Must define crawlability
+   - Must provide at least one fixture
+   - Must pass snapshot parsing test
+   - Must include extractor_version string
+
+3. Implement full adapter for each additional source:
+   For each source added:
+   - Add fixture HTML
+   - Implement parsing
+   - Add tests
+   - Ensure evidence coverage ≥ 90% of extracted fields
+
+4. Provide Adapter Quality Checklist in docs:
+   - ToS-safe?
+   - No login?
+   - Evidence coverage?
+   - Rate limits respected?
+   - Manual fallback if gated?
+   - Parsing tests included?
+
+5. Add CI rule:
+   - Fail build if new adapter has no fixtures
+   - Fail build if parse tests missing
+
+6. Document expansion workflow in RUNBOOK.md:
+   - Add to sources.yaml
+   - Implement adapter
+   - Add fixtures
+   - Run tests
+   - Review evidence coverage
+   - Run sync locally
+
+Deliver complete code for:
+- new-adapter CLI generator
+- template files
+- CI enforcement logic (basic check script acceptable)

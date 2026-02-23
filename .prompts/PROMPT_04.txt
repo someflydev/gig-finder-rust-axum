@@ -1,0 +1,37 @@
+Implement SourceAdapter trait:
+
+trait SourceAdapter {
+    fn source_id(&self) -> &'static str;
+    fn crawlability(&self) -> Crawlability;
+    async fn fetch_listing(...)
+    fn parse_listing(...)
+    async fn fetch_detail(...)
+    fn parse_detail(...)
+}
+
+Crawlability:
+- PublicHtml
+- Api
+- Rss
+- Gated
+- ManualOnly
+
+Adapters to implement:
+
+1. Appen CrowdGen
+2. Clickworker
+3. OneForma Jobs
+4. TELUS AI Community or RWS TrainAI (public pages only)
+5. Prolific (manual ingestion for studies)
+
+Rules:
+- No login bypass
+- Every extracted field requires EvidenceRef
+- Fixtures mandatory
+- Golden JSON snapshot test required
+
+Manual ingestion format:
+manual/<source_id>/*.json
+
+After implementation:
+- cargo test must pass

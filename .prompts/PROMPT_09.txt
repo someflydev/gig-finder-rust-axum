@@ -1,0 +1,23 @@
+Implement:
+
+CLI commands:
+- sync
+- serve
+- report
+- seed
+- debug
+
+GitHub Actions:
+- fmt
+- clippy (deny warnings)
+- test
+
+Guardrails:
+- Adapter checklist doc
+- Runtime warning if evidence missing
+- UI badge for manual/gated sources
+
+Ensure:
+- just dev works
+- DB on 5400
+- No default ports anywhere
