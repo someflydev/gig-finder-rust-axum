@@ -1,0 +1,17 @@
+---
+Timestamp: 2026-02-23T20:10:01-0600
+Summary: Post-flight excellence audit of the full prompt plan (`.prompts/PROMPT_00_s.txt`..`PROMPT_10.txt`) against the as-built RHOF repository. Verified traceability, runtime entrypoints, tests, CI, docs, fixtures, adapter generator, and frontend artifacts; produced `POST_FLIGHT_REPORT.md` and `FRONT_FACING_IDEAS.md`.
+Top 10 issues found:
+- P1: `rhof-cli migrate` is stubbed while `just migrate` and runbook reference it.
+- P1: Sync pipeline is staged-report-only and does not persist opportunities/opportunity_versions to Postgres.
+- P1: Web UI reads report JSON + `sources.yaml` instead of canonical DB-backed read models.
+- P1: `just tailwind` requires missing `./bin/tailwindcss` with no bootstrap/install path.
+- P1: `sqlx-prepare` workflow is exposed/documented but sqlx runtime/query wiring is not implemented.
+- P2: Scheduler config exists, but scheduler jobs do not actually invoke sync.
+- P2: Adapters are fixture replay parsers; raw HTML/JSON parsing logic is not demonstrated yet.
+- P2: Adapter CI contract checks are presence-based and do not enforce coverage threshold/parser correctness.
+- P2: Prompt/docs command naming is inconsistent (`rhof` vs `rhof-cli`).
+- P2: `docs/ARCHITECTURE.md` and `docs/DATA_MODEL.md` remain placeholders.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- None (audit/reporting only; no repo code/docs behavior changes applied in this run).
+---
