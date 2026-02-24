@@ -10,11 +10,23 @@ Rust/Axum implementation of the RHOF system for discovering and tracking remote 
 - `docs/` architecture, data model, runbook, source notes
 - `assets/` Tailwind input and compiled static CSS
 
-## Quickstart (planned flow)
+## Quickstart
 
-1. Start Postgres on host port `5401`: `just db-up`
-2. Copy `.env.example` to `.env` and adjust if needed
-3. Run migrations: `just migrate`
-4. Start web app: `just serve`
+1. Start Postgres on host port `5401`:
+   `just db-up`
+2. Copy env config:
+   `cp .env.example .env`
+3. Apply the current SQL migration (the `rhof-cli migrate` command is still scaffolded):
+   `PGPASSWORD=rhof psql -h localhost -p 5401 -U rhof -d rhof -f migrations/20260223210000_init_schema.up.sql`
+4. Run a fixture-driven sync (writes `artifacts/` and `reports/<run_id>/`):
+   `cargo run -p rhof-cli -- sync`
+5. View a summary of recent runs:
+   `cargo run -p rhof-cli -- report daily --runs 3`
+6. Start the web UI (default `http://localhost:8000`):
+   `cargo run -p rhof-cli -- serve`
 
-Note: this repository is scaffolded prompt-by-prompt; later prompts add full implementation.
+Useful commands:
+
+- `cargo run -p rhof-cli -- seed` (fixture-derived seed/import path)
+- `cargo run -p rhof-cli -- debug` (env + recent report summary)
+- `cargo test --workspace`
