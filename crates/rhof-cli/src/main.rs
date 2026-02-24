@@ -16,6 +16,9 @@ enum Commands {
         #[command(subcommand)]
         command: ReportCommands,
     },
+    NewAdapter {
+        source_id: String,
+    },
     Seed,
     Debug,
     Migrate,
@@ -49,6 +52,13 @@ async fn main() -> Result<()> {
                 println!("{markdown}");
             }
         },
+        Commands::NewAdapter { source_id } => {
+            let created = rhof_adapters::generate_adapter_scaffold(".", &source_id)?;
+            println!("generated adapter scaffold for `{}`", source_id);
+            for path in created {
+                println!("- {}", path.display());
+            }
+        }
         Commands::Seed => {
             let summary = rhof_sync::seed_from_fixtures_from_env().await?;
             println!(

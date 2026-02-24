@@ -1,0 +1,17 @@
+{
+  "fixture_id": "sample",
+  "source_id": "sample-source",
+  "crawlability": "PublicHtml",
+  "captured_from_url": "https://example.com/sample-source",
+  "fetched_at": "2026-02-24T12:00:00Z",
+  "extractor_version": "sample-source-v1",
+  "raw_artifact": {
+    "content_type": "text/html",
+    "path": "raw/listing.html",
+    "inline_text": null,
+    "sha256": null
+  },
+  "parsed_records": [],
+  "evidence_coverage_percent": 0.0,
+  "notes": "Generated scaffold for sample source"
+}

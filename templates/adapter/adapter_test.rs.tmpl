@@ -1,0 +1,9 @@
+// Generated snapshot test scaffold for {{source_id}}.
+// Wire this into an adapter parser test once the adapter implementation is registered.
+
+#[test]
+fn {{source_id}}_snapshot_scaffold_exists() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    assert!(root.join("fixtures/{{source_id}}/sample/bundle.json").exists());
+    assert!(root.join("fixtures/{{source_id}}/sample/snapshot.json").exists());
+}

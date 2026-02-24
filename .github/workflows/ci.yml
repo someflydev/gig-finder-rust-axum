@@ -54,7 +54,11 @@ jobs:
       RHOF_USER_AGENT: rhof-bot/0.1
     steps:
       - uses: actions/checkout@v4
+      - name: Install Python dependencies for checks
+        run: python3 -m pip install --upgrade pip pyyaml
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Adapter contract checks
+        run: python3 scripts/check_adapters.py
       - name: cargo test
         run: cargo test --workspace
