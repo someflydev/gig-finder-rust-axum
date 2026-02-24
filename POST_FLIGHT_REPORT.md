@@ -77,13 +77,13 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 
 | Prompt ID | Intended artifacts | Found artifacts | Status | Notes | Suggested follow-up |
 |---|---|---|---|---|---|
-| `PROMPT_00_s.txt` | Execution contract + stack + mission constraints | `.prompts/PROMPT_00_s.txt`, repo-root RHOF workspace, runnable CLI/web, persisted sync path | Partial | Major contract elements are implemented (DB-backed sync, durable review resolution, dedup cluster persistence), but live fetching and broader raw parsing depth remain incomplete (`crates/rhof-adapters/src/lib.rs:234`, `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:356`). | Broaden raw parser coverage and add duplicate/review fixture cases to exercise the full workflow automatically. |
+| `PROMPT_00_s.txt` | Execution contract + stack + mission constraints | `.prompts/PROMPT_00_s.txt`, repo-root RHOF workspace, runnable CLI/web, persisted sync path | Partial | Major contract elements are implemented (DB-backed sync, durable review resolution, dedup cluster persistence), and there is now a DB-backed integration test covering sync -> review queue -> resolve. Remaining gaps are live fetching and broader raw parsing depth (`crates/rhof-adapters/src/lib.rs:234`, `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:875`). | Broaden raw parser coverage and promote DB-backed integration coverage into CI. |
 | `PROMPT_01.txt` | Repo-root workspace + Docker/Just/env/docs/rules/`sources.yaml` + Tailwind workflow | All listed scaffold artifacts present | Delivered | Tailwind bootstrap gap resolved with `just tailwind-install` and script (`justfile:23`, `scripts/install-tailwind.sh:31`). | Optional: add checksum verification in Tailwind installer. |
 | `PROMPT_02.txt` | Domain model + migrations + migration execution path | `rhof-core` types + SQL migration + embedded migrator + CLI migrate command | Delivered | Migrations are runnable and migration history is tracked (`crates/rhof-sync/src/lib.rs:31`, `crates/rhof-sync/src/lib.rs:1107`). | Add migration integration test against ephemeral Postgres in CI (future). |
 | `PROMPT_03.txt` | Immutable artifact storage + HTTP client/retry/rate-limits + tests | `crates/rhof-storage/src/lib.rs` | Delivered | Strong implementation and tests for hashing/atomic writes/backoff (`crates/rhof-storage/src/lib.rs:65`, `crates/rhof-storage/src/lib.rs:397`). | Add HTTP integration tests for retry classifications. |
 | `PROMPT_04.txt` | Adapter trait + 5 initial adapters + unified fixture/manual schema + snapshots | `rhof-adapters`, fixture bundles, manual prolific fixture | Partial | Contract/schema/tests are strong. All initial adapters now parse basic `title`/`apply_url` fields from raw fixtures, but broader canonical fields still rely heavily on fixture `parsed_records` (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430`). | Expand raw parser coverage to description/pay/requirements fields incrementally. |
 | `PROMPT_05.txt` | Sync orchestration + reports + scheduler + idempotency | `rhof-sync`, DB persistence path, reports/parquet outputs, scheduler command path | Partial | Sync is DB-backed and idempotent for versions (`crates/rhof-sync/src/lib.rs:495`, `crates/rhof-sync/src/lib.rs:676`). Scheduler jobs now execute sync when enabled, but operational hardening is minimal (`crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137`). | Add scheduler metrics/supervision/backoff controls. |
-| `PROMPT_06.txt` | Dedup + YAML rules + tests | `rhof-sync` dedup/rules + `rules/*.yaml` + tests | Delivered | Dedup/rules logic and tests are present, and cluster proposals/members are now persisted to `dedup_clusters`/`dedup_cluster_members` when duplicates/review pairs are detected (`crates/rhof-sync/src/lib.rs:214`, `crates/rhof-sync/src/lib.rs:326`, `crates/rhof-sync/src/lib.rs:830`). | Add fixtures/tests that intentionally trigger duplicate/review cases to exercise DB persistence paths automatically. |
+| `PROMPT_06.txt` | Dedup + YAML rules + tests | `rhof-sync` dedup/rules + `rules/*.yaml` + tests | Delivered | Dedup/rules logic and tests are present, cluster proposals/members are persisted, and a DB-backed integration test now exercises duplicate/review persistence via sync (`crates/rhof-sync/src/lib.rs:214`, `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:875`). | Promote DB-backed duplicate/review integration coverage into CI service jobs. |
 | `PROMPT_07.txt` | Parquet exports + manifest + `report daily` CLI | `rhof-sync` parquet/manifest + `rhof-cli report daily` | Delivered | Manifest hashes + Parquet outputs are implemented and routable in reports (`crates/rhof-sync/src/lib.rs:1013`, `crates/rhof-sync/src/lib.rs:1147`). | Document Parquet schemas formally in `docs/`. |
 | `PROMPT_08.txt` | Axum routes + Askama + HTMX + Plotly JSON + smoke tests | `rhof-web` routes/templates/tests | Delivered | Route surface and smoke tests match prompt; web loaders prefer DB-backed sources/opportunities, and `/review/{id}/resolve` now updates `review_items` when DB config is present (`crates/rhof-web/src/lib.rs:199`, `crates/rhof-web/src/lib.rs:356`, `crates/rhof-web/src/lib.rs:647`). | Add a DB-backed integration test for review resolve to prevent regressions. |
 | `PROMPT_09.txt` | CLI commands + seed + CI + guardrails + port policy | `rhof-cli`, CI workflow, adapter checklist, evidence warnings, source badges | Delivered | `migrate`, `sync`, `serve`, `report`, `seed`, `debug`, `scheduler` all exist (`crates/rhof-cli/src/main.rs:13`). SQLx contributor prerequisites are now documented (`README.md:36`, `docs/RUNBOOK.md:10`). | Optional: add CI check for `rhof-cli migrate` against service DB. |
@@ -91,7 +91,7 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 
 ## 4. Completeness Score (0–100) + Rubric Breakdown
 
-### Overall Score: **87 / 100**
+### Overall Score: **88 / 100**
 
 ### A) Core Functionality (0–25): **24 / 25**
 - Sync persists DB rows + versions + tags/risk/review and writes reports/parquet (`crates/rhof-sync/src/lib.rs:676`, `crates/rhof-sync/src/lib.rs:823`, `crates/rhof-sync/src/lib.rs:1013`).
@@ -105,11 +105,12 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 - `sqlx-prepare` prerequisites are documented (`README.md:38`, `docs/RUNBOOK.md:10`).
 - Remaining friction: some workflows still assume manual local tool installs (`cargo-sqlx`, Tailwind binary download).
 
-### C) Tests + Quality Gates (0–15): **13 / 15**
+### C) Tests + Quality Gates (0–15): **14 / 15**
 - 16 Rust tests pass across key crates.
 - CI runs `fmt`, `clippy`, adapter contract checks, and workspace tests (`.github/workflows/ci.yml:16`, `.github/workflows/ci.yml:27`, `.github/workflows/ci.yml:61`, `.github/workflows/ci.yml:64`).
 - Adapter contract checker is stronger now (`scripts/check_adapters.py:84`, `scripts/check_adapters.py:89`).
-- Remaining gap: no automated DB integration test in CI for migrations/sync idempotency.
+- DB-backed integration coverage now exists for `sync -> review queue -> resolve` in `rhof-web` tests (`crates/rhof-web/src/lib.rs:875`).
+- Remaining gap: DB-backed integration tests are not yet wired into CI service jobs (and migrate+sync idempotency is still only manually verified in CI).
 
 ### D) Docs + Examples (0–15): **13 / 15**
 - README quickstart, runbook, source notes, and adapter checklist are all useful and current (`README.md:13`, `docs/RUNBOOK.md:12`, `docs/SOURCES.md:1`, `docs/ADAPTER_CHECKLIST.md:1`).
@@ -148,7 +149,7 @@ Evidence:
 - Adapter generator/templates/checker and chunking workflow are strong long-term scaling investments (`crates/rhof-adapters/src/lib.rs:428`, `scripts/check_adapters.py:83`, `docs/RUNBOOK.md:33`).
 - Docs quality improved materially with architecture/data model content (`docs/ARCHITECTURE.md:3`, `docs/DATA_MODEL.md:3`).
 - Frontend baseline polish improved with committed CSS, independent of Tailwind build step (`assets/static/app.css:1`).
-- Remaining weakness is adapter realism breadth and limited automated coverage for duplicate/review persistence scenarios.
+- Remaining weakness is adapter realism breadth (most canonical fields still derive from fixture `parsed_records` beyond `title/apply_url`).
 
 ## 6. Priority Issues (P0–P3) (Prompt ID, Problem, Impact, Suggested Fix)
 
@@ -157,7 +158,7 @@ No `P0` or `P1` issues remain.
 | Issue ID | Priority | Prompt ID | Problem | Evidence | Impact | Suggested Fix |
 |---|---|---|---|---|---|---|
 | PFN-014 | P2 | `PROMPT_04`, `PROMPT_10` | Initial adapters now parse raw title/apply fields, but most canonical fields are still sourced from fixture `parsed_records`. | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | Parser resilience is only partially proven for real extraction logic. | Expand raw parser coverage (description/pay/requirements/constraints) incrementally while preserving snapshot tests. |
-| PFN-015 | P2 | `PROMPT_06`, `PROMPT_08` | Dedup cluster persistence and review resolve are implemented, but current fixtures rarely trigger duplicate/review cases, so the durable paths are under-tested in automation. | `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:356`, `scripts/check_adapters.py:84` | Regression risk remains for an important audit/review workflow despite code being present. | Add targeted duplicate/review fixtures plus an integration test covering sync -> review queue -> resolve. |
+| PFN-015 | P2 | `PROMPT_06`, `PROMPT_08` | Durable dedup/review workflow is implemented and covered by a local DB-backed integration test, but that coverage is not yet enforced in CI and still depends on a local Postgres service. | `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:875`, `.github/workflows/ci.yml:16` | Important audit/review workflow can regress without CI catching it. | Add a CI job with Postgres service to run the DB-backed review integration test (and later expand to migrate+sync idempotency). |
 | PFN-016 | P2 | `PROMPT_05`, `PROMPT_09` | Scheduler mode exists, but lacks operational hardening (status reporting/metrics/locking/retry policy). | `crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137` | Suitable for local use, but not yet trustworthy for unattended operation. | Add daemon logging/metrics, optional run locking, and explicit failure handling/backoff policy. |
 | PFN-017 | P3 | `PROMPT_10` | `sample-source` generator artifacts still live in repo and can be mistaken for a real adapter implementation outside docs. | `fixtures/sample-source/sample/bundle.json:1`, `crates/rhof-adapters/tests/sample-source_snapshot.rs:1` | Minor surface-area noise for contributors. | Move generator sample artifacts into `examples/` or delete/regenerate in tests as needed. |
 | PFN-018 | P3 | Packaging (cross-cutting) | Release/package hygiene is still minimal (no root `LICENSE` file/changelog/release checklist). | `Cargo.toml:15`, root scan (no `LICENSE*` / `CHANGELOG*`) | Lowers external credibility and onboarding confidence. | Add `LICENSE`, `CHANGELOG.md` stub, and a simple release checklist section in README/docs. |
@@ -198,7 +199,7 @@ No `P0` or `P1` issues remain.
 | # | Next step | Why it matters | Evidence anchor | Effort |
 |---|---|---|---|---|
 | 1 | Expand raw parser coverage beyond title/apply for the initial adapters | Biggest remaining completeness gain in adapter realism | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | M |
-| 2 | Add targeted duplicate/review fixtures + automated integration coverage for durable review flow | Turns newly implemented dedup/review persistence into a protected regression path | `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:356` | M |
+| 2 | Add CI Postgres service job to run the DB-backed review workflow integration test | Converts new local integration coverage into enforced regression protection | `crates/rhof-web/src/lib.rs:875`, `.github/workflows/ci.yml:16` | M |
 | 3 | Add scheduler hardening (run locks, retries/metrics/logging) | Moves scheduler from local/dev use toward unattended reliability | `crates/rhof-sync/src/lib.rs:1137` | M |
 | 4 | Add CI integration test for `migrate` + sync idempotency | Converts manual verification into regression protection | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676` | M |
 | 5 | Document report JSON + Parquet schemas | Improves downstream usability and product packaging | `crates/rhof-sync/src/lib.rs:1013` | S |

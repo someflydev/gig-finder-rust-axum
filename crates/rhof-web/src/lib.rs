@@ -701,6 +701,9 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use http_body_util::BodyExt;
+    use sqlx::Row;
+    use std::sync::{Mutex, OnceLock};
+    use tempfile::tempdir;
     use tower::ServiceExt;
 
     fn workspace_root() -> PathBuf {
@@ -708,6 +711,107 @@ mod tests {
             .join("../..")
             .canonicalize()
             .unwrap()
+    }
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn copy_dir_recursive(src: &Path, dst: &Path) {
+        std::fs::create_dir_all(dst).unwrap();
+        for entry in std::fs::read_dir(src).unwrap() {
+            let entry = entry.unwrap();
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+            if src_path.is_dir() {
+                copy_dir_recursive(&src_path, &dst_path);
+            } else {
+                if let Some(parent) = dst_path.parent() {
+                    std::fs::create_dir_all(parent).unwrap();
+                }
+                std::fs::copy(&src_path, &dst_path).unwrap();
+            }
+        }
+    }
+
+    fn set_json_path_str(value: &mut serde_json::Value, path: &[&str], new_value: &str) {
+        let mut cursor = value;
+        for segment in &path[..path.len() - 1] {
+            cursor = cursor.get_mut(*segment).unwrap();
+        }
+        *cursor.get_mut(path[path.len() - 1]).unwrap() = serde_json::Value::String(new_value.to_string());
+    }
+
+    fn set_json_path_num(value: &mut serde_json::Value, path: &[&str], new_value: f64) {
+        let mut cursor = value;
+        for segment in &path[..path.len() - 1] {
+            cursor = cursor.get_mut(*segment).unwrap();
+        }
+        *cursor.get_mut(path[path.len() - 1]).unwrap() =
+            serde_json::Value::Number(serde_json::Number::from_f64(new_value).unwrap());
+    }
+
+    fn rewrite_two_record_html_bundle(
+        bundle_path: &Path,
+        raw_html_path: &Path,
+        title_a: &str,
+        apply_a: &str,
+        title_b: &str,
+        apply_b: &str,
+    ) {
+        let mut bundle: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(bundle_path).unwrap()).unwrap();
+        let first = bundle["parsed_records"][0].clone();
+        let mut rec_a = first.clone();
+        let mut rec_b = first;
+
+        set_json_path_str(&mut rec_a, &["title", "value"], title_a);
+        set_json_path_str(&mut rec_a, &["title", "snippet"], title_a);
+        set_json_path_str(&mut rec_a, &["apply_url", "value"], apply_a);
+        set_json_path_str(&mut rec_a, &["apply_url", "snippet"], apply_a);
+        set_json_path_str(&mut rec_a, &["listing_url"], apply_a);
+        set_json_path_str(&mut rec_a, &["detail_url"], apply_a);
+        set_json_path_num(&mut rec_a, &["pay_rate_min", "value"], 12.0);
+        set_json_path_num(&mut rec_a, &["pay_rate_max", "value"], 18.0);
+
+        set_json_path_str(&mut rec_b, &["title", "value"], title_b);
+        set_json_path_str(&mut rec_b, &["title", "snippet"], title_b);
+        set_json_path_str(&mut rec_b, &["apply_url", "value"], apply_b);
+        set_json_path_str(&mut rec_b, &["apply_url", "snippet"], apply_b);
+        set_json_path_str(&mut rec_b, &["listing_url"], apply_b);
+        set_json_path_str(&mut rec_b, &["detail_url"], apply_b);
+        set_json_path_num(&mut rec_b, &["pay_rate_min", "value"], 13.0);
+        set_json_path_num(&mut rec_b, &["pay_rate_max", "value"], 19.0);
+
+        bundle["parsed_records"] = serde_json::Value::Array(vec![rec_a, rec_b]);
+        std::fs::write(bundle_path, serde_json::to_string_pretty(&bundle).unwrap()).unwrap();
+
+        let html = format!(
+            "<!doctype html><html><body><h1>{}</h1><a href=\"{}\">Apply</a></body></html>",
+            title_a, apply_a
+        );
+        std::fs::write(raw_html_path, html).unwrap();
+    }
+
+    fn write_integration_sources_yaml(path: &Path) {
+        let yaml = r#"sources:
+  - source_id: clickworker
+    display_name: Clickworker
+    enabled: true
+    crawlability: PublicHtml
+    mode: fixture
+    listing_urls:
+      - https://www.clickworker.com/jobs
+  - source_id: telus-ai-community
+    display_name: TELUS AI Community
+    enabled: true
+    crawlability: PublicHtml
+    mode: fixture
+    listing_urls:
+      - https://www.telusdigital.com/careers/ai-community
+"#;
+        std::fs::write(path, yaml).unwrap();
     }
 
     #[tokio::test]
@@ -765,5 +869,164 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn db_backed_sync_review_and_resolve_flow_persists_review_and_clusters() {
+        let _guard = env_lock().lock().unwrap();
+        let db_url = "postgres://rhof:rhof@localhost:5401/rhof";
+        let probe = PgPool::connect(db_url).await;
+        let Ok(pool) = probe else {
+            eprintln!("skipping DB-backed integration test; could not connect to local Postgres");
+            return;
+        };
+        drop(pool);
+
+        let marker = format!(
+            "rhofit{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let auto_a = "AI Data Contributor".to_string();
+        let auto_b = "AI Data Contributer".to_string();
+        let review_a = "Internet Assessor - US".to_string();
+        let review_b = "Internet Assessor US (Part-Time)".to_string();
+        let apply_auto_a = format!("https://example.test/{marker}/auto-a");
+        let apply_auto_b = format!("https://example.test/{marker}/auto-b");
+        let apply_review_a = format!("https://example.test/{marker}/review-a");
+        let apply_review_b = format!("https://example.test/{marker}/review-b");
+
+        let temp = tempdir().unwrap();
+        let root = temp.path().to_path_buf();
+        std::fs::create_dir_all(root.join("fixtures")).unwrap();
+        std::fs::create_dir_all(root.join("rules")).unwrap();
+        copy_dir_recursive(&workspace_root().join("rules"), &root.join("rules"));
+        copy_dir_recursive(
+            &workspace_root().join("fixtures/clickworker"),
+            &root.join("fixtures/clickworker"),
+        );
+        copy_dir_recursive(
+            &workspace_root().join("fixtures/telus-ai-community"),
+            &root.join("fixtures/telus-ai-community"),
+        );
+        write_integration_sources_yaml(&root.join("sources.yaml"));
+        rewrite_two_record_html_bundle(
+            &root.join("fixtures/clickworker/sample/bundle.json"),
+            &root.join("fixtures/clickworker/sample/raw/listing.html"),
+            &auto_a,
+            &apply_auto_a,
+            &auto_b,
+            &apply_auto_b,
+        );
+        rewrite_two_record_html_bundle(
+            &root.join("fixtures/telus-ai-community/sample/bundle.json"),
+            &root.join("fixtures/telus-ai-community/sample/raw/listing.html"),
+            &review_a,
+            &apply_review_a,
+            &review_b,
+            &apply_review_b,
+        );
+
+        std::env::set_var("DATABASE_URL", db_url);
+        rhof_sync::apply_migrations_from_env().await.unwrap();
+        let summary = rhof_sync::run_sync_once_with_config(rhof_sync::SyncConfig {
+            database_url: db_url.to_string(),
+            artifacts_dir: root.join("artifacts"),
+            scheduler_enabled: false,
+            sync_cron_1: "0 6 * * *".to_string(),
+            sync_cron_2: "0 18 * * *".to_string(),
+            user_agent: "rhof-web-test/0.1".to_string(),
+            http_timeout_secs: 5,
+            workspace_root: root.clone(),
+        })
+        .await
+        .unwrap();
+        assert_eq!(summary.enabled_sources, 2);
+        assert_eq!(summary.parsed_drafts, 4);
+
+        let pool = PgPool::connect(db_url).await.unwrap();
+        let like_marker = format!("%{marker}%");
+        let dedup_cluster_count: i64 = sqlx::query(
+            r#"
+            SELECT COUNT(DISTINCT dc.id) AS count
+              FROM dedup_clusters dc
+              JOIN dedup_cluster_members dcm ON dcm.dedup_cluster_id = dc.id
+              JOIN opportunities o ON o.id = dcm.opportunity_id
+             WHERE o.apply_url LIKE $1
+            "#,
+        )
+        .bind(&like_marker)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .try_get("count")
+        .unwrap();
+        assert!(dedup_cluster_count >= 2, "expected persisted auto + review clusters");
+
+        let open_review_count: i64 = sqlx::query(
+            r#"
+            SELECT COUNT(*) AS count
+              FROM review_items ri
+              JOIN opportunities o ON o.id = ri.opportunity_id
+             WHERE o.apply_url LIKE $1
+               AND ri.status = 'open'
+            "#,
+        )
+        .bind(&like_marker)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .try_get("count")
+        .unwrap();
+        assert!(open_review_count >= 2, "expected review queue entries for borderline pair");
+
+        let review_id: String = sqlx::query(
+            r#"
+            SELECT ri.opportunity_id::text AS opportunity_id
+              FROM review_items ri
+              JOIN opportunities o ON o.id = ri.opportunity_id
+             WHERE o.apply_url LIKE $1
+               AND ri.status = 'open'
+             ORDER BY ri.created_at DESC
+             LIMIT 1
+            "#,
+        )
+        .bind(&like_marker)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .try_get("opportunity_id")
+        .unwrap();
+
+        let app = app(AppState::new(root));
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/review/{review_id}/resolve"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let resolved_count: i64 = sqlx::query(
+            r#"
+            SELECT COUNT(*) AS count
+              FROM review_items
+             WHERE opportunity_id::text = $1
+               AND status = 'resolved'
+            "#,
+        )
+        .bind(&review_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .try_get("count")
+        .unwrap();
+        assert!(resolved_count >= 1, "expected resolved review_items rows after POST resolve");
     }
 }

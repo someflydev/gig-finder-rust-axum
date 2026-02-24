@@ -1,4 +1,22 @@
 ---
+Timestamp: 2026-02-23T22:21:11-0600
+Summary: Added regression coverage for the newly implemented durable dedup/review workflow by creating a DB-backed `rhof-web` integration test that builds a temporary workspace, rewrites fixture bundles to trigger both auto-cluster and review cases, runs sync, asserts persisted dedup/review rows, and verifies `/review/{id}/resolve` updates Postgres state.
+Top 10 issues found:
+- P2: DB-backed review workflow integration coverage exists locally, but CI does not yet provision Postgres to run it.
+- P2: Raw parser coverage is still shallow (mostly `title`/`apply_url`) across initial adapters.
+- P2: Scheduler mode remains minimally hardened (no run locks/metrics/retry policy).
+- P2: `migrate` + sync idempotency is still not covered by an automated DB integration test in CI.
+- P3: Formal report JSON schema docs are still missing.
+- P3: Formal Parquet schema docs are still missing.
+- P3: `sample-source` generator artifacts remain in-tree and may confuse contributors.
+- P3: Root `LICENSE` file is still missing.
+- P3: Changelog/release checklist is still missing.
+- P3: Tailwind installer script would benefit from checksum verification.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `crates/rhof-web/src/lib.rs` :: + DB-backed integration test (`sync -> dedup/review persistence -> POST /review/{id}/resolve`) with temporary workspace fixture rewrites :: adds regression coverage for durable review workflow
+- `crates/rhof-web/Cargo.toml` :: + `tempfile` dev-dependency :: supports temp workspace integration test setup
+- `POST_FLIGHT_REPORT.md` :: refreshed completeness/tests/issues/next-steps after adding DB-backed durable review workflow integration coverage :: keeps audit current
+---
 Timestamp: 2026-02-23T22:14:00-0600
 Summary: Implemented the next highest-leverage systems-completeness item: durable dedup cluster persistence (`dedup_clusters` / `dedup_cluster_members`) and DB-backed review queue resolution via `/review/{id}/resolve`. Re-validated with workspace build/tests, `rhof-cli sync`, and a live web+Postgres end-to-end resolve check (row status flipped from open to resolved when `DATABASE_URL` was present).
 Top 10 issues found:
