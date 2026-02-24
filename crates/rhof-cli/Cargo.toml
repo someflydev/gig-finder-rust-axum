@@ -9,8 +9,11 @@ name = "rhof-cli"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
 rhof-core = { path = "../rhof-core" }
 rhof-storage = { path = "../rhof-storage" }
 rhof-adapters = { path = "../rhof-adapters" }
 rhof-sync = { path = "../rhof-sync" }
 rhof-web = { path = "../rhof-web" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

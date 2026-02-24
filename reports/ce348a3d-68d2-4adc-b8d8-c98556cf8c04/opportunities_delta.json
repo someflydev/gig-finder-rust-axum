@@ -1,0 +1,804 @@
+{
+  "fetch_run": {
+    "database_url": "postgres://rhof:rhof@localhost:5401/rhof",
+    "finished_at": "2026-02-24T01:31:45.650061Z",
+    "persistence_mode": "staged-report-only (DB persistence wiring lands in later prompts)",
+    "run_id": "ce348a3d-68d2-4adc-b8d8-c98556cf8c04",
+    "started_at": "2026-02-24T01:31:45.643725Z",
+    "status": "completed"
+  },
+  "opportunities": [
+    {
+      "canonical_key": "appen-crowdgen:appen-search-relevance-rater",
+      "draft": {
+        "apply_url": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": "a[href]",
+            "snippet": "Apply",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "https://crowdgen.com/jobs/search-rater"
+        },
+        "currency": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".pay",
+            "snippet": "USD",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "USD"
+        },
+        "description": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".job-description",
+            "snippet": "Evaluate search result relevance",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "Evaluate search result relevance on a flexible schedule."
+        },
+        "detail_url": "https://crowdgen.com/jobs/search-rater",
+        "extractor_version": "appen-v1",
+        "fetched_at": "2026-02-24T12:00:00Z",
+        "geo_constraints": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".geo",
+            "snippet": "United States",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "US"
+        },
+        "listing_url": "https://crowdgen.com/jobs/",
+        "min_hours_per_week": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".hours",
+            "snippet": "10+ hrs/week",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": 10.0
+        },
+        "one_off_vs_ongoing": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".duration",
+            "snippet": "ongoing project",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "ongoing"
+        },
+        "pay_model": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".pay",
+            "snippet": "$14.00/hr",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "hourly"
+        },
+        "pay_rate_max": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".pay",
+            "snippet": "$14.00-$18.00/hr",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": 18.0
+        },
+        "pay_rate_min": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".pay",
+            "snippet": "$14.00/hr",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": 14.0
+        },
+        "payment_methods": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".payments",
+            "snippet": "Payoneer",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": [
+            "Payoneer"
+          ]
+        },
+        "requirements": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".requirements li",
+            "snippet": "English fluency",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": [
+            "English fluency",
+            "Computer"
+          ]
+        },
+        "source_id": "appen-crowdgen",
+        "title": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": "h1",
+            "snippet": "Appen Search Relevance Rater",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "Appen Search Relevance Rater"
+        },
+        "verification_requirements": {
+          "evidence": {
+            "extractor_version": "appen-v1",
+            "fetched_at": "2026-02-24T12:00:00Z",
+            "raw_artifact_id": "3f91c97a-3491-5322-b90f-68ed64d93b4a",
+            "selector_or_pointer": ".requirements",
+            "snippet": "ID verification",
+            "source_url": "https://crowdgen.com/jobs/"
+          },
+          "value": "ID verification"
+        }
+      },
+      "source_id": "appen-crowdgen",
+      "version_no": 1
+    },
+    {
+      "canonical_key": "clickworker:clickworker-ai-data-contributor",
+      "draft": {
+        "apply_url": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": "a[href]",
+            "snippet": "Apply",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "https://www.clickworker.com/clickworker-job/ai-data-contributor/"
+        },
+        "currency": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".pay",
+            "snippet": "USD",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "USD"
+        },
+        "description": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".summary",
+            "snippet": "labeled data",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "Contribute labeled data for AI systems."
+        },
+        "detail_url": "https://www.clickworker.com/clickworker-job/ai-data-contributor/",
+        "extractor_version": "clickworker-v1",
+        "fetched_at": "2026-02-24T12:05:00Z",
+        "geo_constraints": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".geo",
+            "snippet": "country-dependent",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "Global (country-dependent tasks)"
+        },
+        "listing_url": "https://www.clickworker.com/clickworker-job/",
+        "min_hours_per_week": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".hours",
+            "snippet": "5 hrs/week",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": 5.0
+        },
+        "one_off_vs_ongoing": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".duration",
+            "snippet": "ongoing",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "ongoing"
+        },
+        "pay_model": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".pay",
+            "snippet": "$12/hr",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "hourly"
+        },
+        "pay_rate_max": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".pay",
+            "snippet": "$12-$16/hr",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": 16.0
+        },
+        "pay_rate_min": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".pay",
+            "snippet": "$12/hr",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": 12.0
+        },
+        "payment_methods": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".payments",
+            "snippet": "PayPal",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": [
+            "PayPal"
+          ]
+        },
+        "requirements": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".requirements li",
+            "snippet": "Smartphone",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": [
+            "Smartphone",
+            "English"
+          ]
+        },
+        "source_id": "clickworker",
+        "title": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": "h1",
+            "snippet": "Clickworker AI Data Contributor",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "Clickworker AI Data Contributor"
+        },
+        "verification_requirements": {
+          "evidence": {
+            "extractor_version": "clickworker-v1",
+            "fetched_at": "2026-02-24T12:05:00Z",
+            "raw_artifact_id": "0c03de98-fd72-51b1-8476-9d80bfd46b6f",
+            "selector_or_pointer": ".verification",
+            "snippet": "verify your profile",
+            "source_url": "https://www.clickworker.com/clickworker-job/"
+          },
+          "value": "Profile verification"
+        }
+      },
+      "source_id": "clickworker",
+      "version_no": 1
+    },
+    {
+      "canonical_key": "oneforma-jobs:oneforma-uhrs-contributor",
+      "draft": {
+        "apply_url": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": "a[href]",
+            "snippet": "Apply",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "https://jobs.oneforma.com/job/uhrs-contributor"
+        },
+        "currency": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".pay",
+            "snippet": "USD",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "USD"
+        },
+        "description": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".summary",
+            "snippet": "microtasks",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "Perform microtasks in the UHRS platform."
+        },
+        "detail_url": "https://jobs.oneforma.com/job/uhrs-contributor",
+        "extractor_version": "oneforma-v1",
+        "fetched_at": "2026-02-24T12:10:00Z",
+        "geo_constraints": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".geo",
+            "snippet": "Global",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "Global"
+        },
+        "listing_url": "https://jobs.oneforma.com/",
+        "min_hours_per_week": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".hours",
+            "snippet": "2 hrs/week",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": 2.0
+        },
+        "one_off_vs_ongoing": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".duration",
+            "snippet": "ongoing",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "ongoing"
+        },
+        "pay_model": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".pay",
+            "snippet": "per task",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "task-based"
+        },
+        "pay_rate_max": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".pay",
+            "snippet": "$8-$15/hr equivalent",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": 15.0
+        },
+        "pay_rate_min": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".pay",
+            "snippet": "$8/hr equivalent",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": 8.0
+        },
+        "payment_methods": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".payments",
+            "snippet": "Payoneer",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": [
+            "Payoneer",
+            "PayPal"
+          ]
+        },
+        "requirements": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".requirements li",
+            "snippet": "Internet access",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": [
+            "Internet access"
+          ]
+        },
+        "source_id": "oneforma-jobs",
+        "title": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": "h1",
+            "snippet": "OneForma UHRS Contributor",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "OneForma UHRS Contributor"
+        },
+        "verification_requirements": {
+          "evidence": {
+            "extractor_version": "oneforma-v1",
+            "fetched_at": "2026-02-24T12:10:00Z",
+            "raw_artifact_id": "47a68480-c913-5846-a285-b08459b4f21d",
+            "selector_or_pointer": ".verification",
+            "snippet": "Tax",
+            "source_url": "https://jobs.oneforma.com/"
+          },
+          "value": "Tax and identity checks"
+        }
+      },
+      "source_id": "oneforma-jobs",
+      "version_no": 1
+    },
+    {
+      "canonical_key": "telus-ai-community:telus-ai-community-internet-assessor",
+      "draft": {
+        "apply_url": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": "a[href]",
+            "snippet": "Apply",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "https://www.telusdigital.com/careers/ai-community/internet-assessor"
+        },
+        "currency": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".pay",
+            "snippet": "USD",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "USD"
+        },
+        "description": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".summary",
+            "snippet": "content quality",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "Evaluate online search and content quality."
+        },
+        "detail_url": "https://www.telusdigital.com/careers/ai-community/internet-assessor",
+        "extractor_version": "telus-v1",
+        "fetched_at": "2026-02-24T12:15:00Z",
+        "geo_constraints": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".geo",
+            "snippet": "US",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "US"
+        },
+        "listing_url": "https://www.telusdigital.com/careers/ai-community",
+        "min_hours_per_week": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".hours",
+            "snippet": "10 hrs/week",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": 10.0
+        },
+        "one_off_vs_ongoing": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".duration",
+            "snippet": "ongoing",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "ongoing"
+        },
+        "pay_model": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".pay",
+            "snippet": "hourly",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "hourly"
+        },
+        "pay_rate_max": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".pay",
+            "snippet": "$11-$17/hr",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": 17.0
+        },
+        "pay_rate_min": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".pay",
+            "snippet": "$11/hr",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": 11.0
+        },
+        "payment_methods": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".payments",
+            "snippet": "Direct deposit",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": [
+            "Direct deposit"
+          ]
+        },
+        "requirements": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".requirements li",
+            "snippet": "Computer",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": [
+            "Computer",
+            "English"
+          ]
+        },
+        "source_id": "telus-ai-community",
+        "title": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": "h1",
+            "snippet": "Internet Assessor",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "TELUS AI Community Internet Assessor"
+        },
+        "verification_requirements": {
+          "evidence": {
+            "extractor_version": "telus-v1",
+            "fetched_at": "2026-02-24T12:15:00Z",
+            "raw_artifact_id": "d67e63f9-4980-575f-a87c-f2f98711e96c",
+            "selector_or_pointer": ".verification",
+            "snippet": "Identity verification",
+            "source_url": "https://www.telusdigital.com/careers/ai-community"
+          },
+          "value": "Identity verification"
+        }
+      },
+      "source_id": "telus-ai-community",
+      "version_no": 1
+    },
+    {
+      "canonical_key": "prolific:prolific-remote-research-study",
+      "draft": {
+        "apply_url": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.apply_url",
+            "snippet": "https://app.prolific.com/studies/example",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "https://app.prolific.com/studies/example"
+        },
+        "currency": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.currency",
+            "snippet": "USD",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "USD"
+        },
+        "description": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.description",
+            "snippet": "Manual ingestion",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "Manual ingestion of a gated study listing."
+        },
+        "detail_url": "https://app.prolific.com/studies/example",
+        "extractor_version": "prolific-manual-v1",
+        "fetched_at": "2026-02-24T12:20:00Z",
+        "geo_constraints": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.audience.country",
+            "snippet": "US",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "US"
+        },
+        "listing_url": "https://app.prolific.com/studies",
+        "min_hours_per_week": {
+          "evidence": null,
+          "value": null
+        },
+        "one_off_vs_ongoing": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.type",
+            "snippet": "one-off",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "one_off"
+        },
+        "pay_model": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.reward",
+            "snippet": "$6.00 fixed",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "fixed"
+        },
+        "pay_rate_max": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.reward",
+            "snippet": "$6.00",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": 6.0
+        },
+        "pay_rate_min": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.reward",
+            "snippet": "$6.00",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": 6.0
+        },
+        "payment_methods": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.payment",
+            "snippet": "Prolific payout",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": [
+            "Prolific payout"
+          ]
+        },
+        "requirements": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.eligibility",
+            "snippet": "Age 18+",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": [
+            "Age 18+"
+          ]
+        },
+        "source_id": "prolific",
+        "title": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.title",
+            "snippet": "Prolific Remote Research Study",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "Prolific Remote Research Study"
+        },
+        "verification_requirements": {
+          "evidence": {
+            "extractor_version": "prolific-manual-v1",
+            "fetched_at": "2026-02-24T12:20:00Z",
+            "raw_artifact_id": "46872c3e-de39-566a-ab24-49be12832ade",
+            "selector_or_pointer": "$.requirements",
+            "snippet": "Prolific account",
+            "source_url": "https://app.prolific.com/studies"
+          },
+          "value": "Prolific account"
+        }
+      },
+      "source_id": "prolific",
+      "version_no": 1
+    }
+  ]
+}

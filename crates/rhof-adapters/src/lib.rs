@@ -56,7 +56,7 @@ pub enum AdapterError {
 }
 
 #[async_trait]
-pub trait SourceAdapter {
+pub trait SourceAdapter: Send + Sync {
     fn source_id(&self) -> &'static str;
     fn crawlability(&self) -> Crawlability;
 
@@ -296,6 +296,32 @@ pub fn prolific_manual_adapter() -> impl SourceAdapter {
     FixtureFirstAdapter {
         source_id: "prolific",
         crawlability: Crawlability::ManualOnly,
+    }
+}
+
+pub fn adapter_for_source(source_id: &str) -> Option<Box<dyn SourceAdapter>> {
+    match source_id {
+        "appen-crowdgen" => Some(Box::new(FixtureFirstAdapter {
+            source_id: "appen-crowdgen",
+            crawlability: Crawlability::PublicHtml,
+        })),
+        "clickworker" => Some(Box::new(FixtureFirstAdapter {
+            source_id: "clickworker",
+            crawlability: Crawlability::PublicHtml,
+        })),
+        "oneforma-jobs" => Some(Box::new(FixtureFirstAdapter {
+            source_id: "oneforma-jobs",
+            crawlability: Crawlability::PublicHtml,
+        })),
+        "telus-ai-community" => Some(Box::new(FixtureFirstAdapter {
+            source_id: "telus-ai-community",
+            crawlability: Crawlability::PublicHtml,
+        })),
+        "prolific" => Some(Box::new(FixtureFirstAdapter {
+            source_id: "prolific",
+            crawlability: Crawlability::ManualOnly,
+        })),
+        _ => None,
     }
 }
 
