@@ -77,27 +77,27 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 
 | Prompt ID | Intended artifacts | Found artifacts | Status | Notes | Suggested follow-up |
 |---|---|---|---|---|---|
-| `PROMPT_00_s.txt` | Execution contract + stack + mission constraints | `.prompts/PROMPT_00_s.txt`, repo-root RHOF workspace, runnable CLI/web, persisted sync path | Partial | Major contract elements now implemented, but live fetching and full review/dedup cluster lifecycle are still incomplete (`crates/rhof-adapters/src/lib.rs:234`, `crates/rhof-sync/src/lib.rs:898`). | Finish durable review resolution + dedup cluster persistence; broaden real parser coverage. |
+| `PROMPT_00_s.txt` | Execution contract + stack + mission constraints | `.prompts/PROMPT_00_s.txt`, repo-root RHOF workspace, runnable CLI/web, persisted sync path | Partial | Major contract elements are implemented (DB-backed sync, durable review resolution, dedup cluster persistence), but live fetching and broader raw parsing depth remain incomplete (`crates/rhof-adapters/src/lib.rs:234`, `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:356`). | Broaden raw parser coverage and add duplicate/review fixture cases to exercise the full workflow automatically. |
 | `PROMPT_01.txt` | Repo-root workspace + Docker/Just/env/docs/rules/`sources.yaml` + Tailwind workflow | All listed scaffold artifacts present | Delivered | Tailwind bootstrap gap resolved with `just tailwind-install` and script (`justfile:23`, `scripts/install-tailwind.sh:31`). | Optional: add checksum verification in Tailwind installer. |
 | `PROMPT_02.txt` | Domain model + migrations + migration execution path | `rhof-core` types + SQL migration + embedded migrator + CLI migrate command | Delivered | Migrations are runnable and migration history is tracked (`crates/rhof-sync/src/lib.rs:31`, `crates/rhof-sync/src/lib.rs:1107`). | Add migration integration test against ephemeral Postgres in CI (future). |
 | `PROMPT_03.txt` | Immutable artifact storage + HTTP client/retry/rate-limits + tests | `crates/rhof-storage/src/lib.rs` | Delivered | Strong implementation and tests for hashing/atomic writes/backoff (`crates/rhof-storage/src/lib.rs:65`, `crates/rhof-storage/src/lib.rs:397`). | Add HTTP integration tests for retry classifications. |
-| `PROMPT_04.txt` | Adapter trait + 5 initial adapters + unified fixture/manual schema + snapshots | `rhof-adapters`, fixture bundles, manual prolific fixture | Partial | Contract/schema/tests are strong. Appen now demonstrates a raw HTML parse path via `scraper`, but most adapters still replay parsed fixture records (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:333`). | Roll out raw parser implementations to the remaining adapters incrementally. |
+| `PROMPT_04.txt` | Adapter trait + 5 initial adapters + unified fixture/manual schema + snapshots | `rhof-adapters`, fixture bundles, manual prolific fixture | Partial | Contract/schema/tests are strong. All initial adapters now parse basic `title`/`apply_url` fields from raw fixtures, but broader canonical fields still rely heavily on fixture `parsed_records` (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430`). | Expand raw parser coverage to description/pay/requirements fields incrementally. |
 | `PROMPT_05.txt` | Sync orchestration + reports + scheduler + idempotency | `rhof-sync`, DB persistence path, reports/parquet outputs, scheduler command path | Partial | Sync is DB-backed and idempotent for versions (`crates/rhof-sync/src/lib.rs:495`, `crates/rhof-sync/src/lib.rs:676`). Scheduler jobs now execute sync when enabled, but operational hardening is minimal (`crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137`). | Add scheduler metrics/supervision/backoff controls. |
-| `PROMPT_06.txt` | Dedup + YAML rules + tests | `rhof-sync` dedup/rules + `rules/*.yaml` + tests | Partial | Dedup/rules logic and tests are present (`crates/rhof-sync/src/lib.rs:214`, `crates/rhof-sync/src/lib.rs:326`). Review items persist (`crates/rhof-sync/src/lib.rs:898`), but dedup cluster tables remain unused. | Persist dedup cluster proposals/members in DB tables. |
+| `PROMPT_06.txt` | Dedup + YAML rules + tests | `rhof-sync` dedup/rules + `rules/*.yaml` + tests | Delivered | Dedup/rules logic and tests are present, and cluster proposals/members are now persisted to `dedup_clusters`/`dedup_cluster_members` when duplicates/review pairs are detected (`crates/rhof-sync/src/lib.rs:214`, `crates/rhof-sync/src/lib.rs:326`, `crates/rhof-sync/src/lib.rs:830`). | Add fixtures/tests that intentionally trigger duplicate/review cases to exercise DB persistence paths automatically. |
 | `PROMPT_07.txt` | Parquet exports + manifest + `report daily` CLI | `rhof-sync` parquet/manifest + `rhof-cli report daily` | Delivered | Manifest hashes + Parquet outputs are implemented and routable in reports (`crates/rhof-sync/src/lib.rs:1013`, `crates/rhof-sync/src/lib.rs:1147`). | Document Parquet schemas formally in `docs/`. |
-| `PROMPT_08.txt` | Axum routes + Askama + HTMX + Plotly JSON + smoke tests | `rhof-web` routes/templates/tests | Delivered | Route surface and smoke tests match prompt; web loaders now prefer DB-backed sources/opportunities (`crates/rhof-web/src/lib.rs:199`, `crates/rhof-web/src/lib.rs:403`, `crates/rhof-web/src/lib.rs:545`). | Make review resolve endpoint durable (DB update). |
+| `PROMPT_08.txt` | Axum routes + Askama + HTMX + Plotly JSON + smoke tests | `rhof-web` routes/templates/tests | Delivered | Route surface and smoke tests match prompt; web loaders prefer DB-backed sources/opportunities, and `/review/{id}/resolve` now updates `review_items` when DB config is present (`crates/rhof-web/src/lib.rs:199`, `crates/rhof-web/src/lib.rs:356`, `crates/rhof-web/src/lib.rs:647`). | Add a DB-backed integration test for review resolve to prevent regressions. |
 | `PROMPT_09.txt` | CLI commands + seed + CI + guardrails + port policy | `rhof-cli`, CI workflow, adapter checklist, evidence warnings, source badges | Delivered | `migrate`, `sync`, `serve`, `report`, `seed`, `debug`, `scheduler` all exist (`crates/rhof-cli/src/main.rs:13`). SQLx contributor prerequisites are now documented (`README.md:36`, `docs/RUNBOOK.md:10`). | Optional: add CI check for `rhof-cli migrate` against service DB. |
 | `PROMPT_10.txt` | Adapter generator + templates + CI contract checks + expansion docs | generator code/templates/check script + runbook/source docs | Delivered | Generator and docs are in place; contract checker now enforces non-empty parsed records and `evidence_coverage_percent >= 90` for enabled sources (`scripts/check_adapters.py:84`, `scripts/check_adapters.py:89`). | Add stronger parser-quality checks (e.g., targeted snapshot test matrix by source). |
 
 ## 4. Completeness Score (0–100) + Rubric Breakdown
 
-### Overall Score: **86 / 100**
+### Overall Score: **87 / 100**
 
-### A) Core Functionality (0–25): **23 / 25**
+### A) Core Functionality (0–25): **24 / 25**
 - Sync persists DB rows + versions + tags/risk/review and writes reports/parquet (`crates/rhof-sync/src/lib.rs:676`, `crates/rhof-sync/src/lib.rs:823`, `crates/rhof-sync/src/lib.rs:1013`).
 - `migrate`, `sync`, `report`, `serve`, and `scheduler` command paths exist (`crates/rhof-cli/src/main.rs:74`, `crates/rhof-cli/src/main.rs:78`).
 - Web UI prefers DB-backed reads (`crates/rhof-web/src/lib.rs:403`, `crates/rhof-web/src/lib.rs:441`, `crates/rhof-web/src/lib.rs:545`).
-- Remaining gap: adapters now parse raw title/apply fields from fixtures, but most canonical fields still come from fixture `parsed_records`; review resolve is also not durable yet (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-web/src/lib.rs:341`).
+- Remaining gap: adapters now parse raw title/apply fields from fixtures across the initial set, but most canonical fields still come from fixture `parsed_records` (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430`).
 
 ### B) Developer Experience (0–20): **17 / 20**
 - Quickstart and runbook are accurate (`README.md:13`, `docs/RUNBOOK.md:5`).
@@ -116,11 +116,12 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 - `docs/ARCHITECTURE.md` and `docs/DATA_MODEL.md` are now populated with as-built details (`docs/ARCHITECTURE.md:3`, `docs/DATA_MODEL.md:3`).
 - Remaining gap: missing formal schemas/spec docs for report JSON and Parquet outputs.
 
-### E) Operability + Safety (0–15): **13 / 15**
+### E) Operability + Safety (0–15): **14 / 15**
 - Environment-driven config + port policy consistency (`.env.example:1`, `docker-compose.yml:7`).
 - Immutable hash-addressed artifacts + atomic writes (`crates/rhof-storage/src/lib.rs:65`).
 - Missing-evidence runtime warnings (`crates/rhof-sync/src/lib.rs:1215`).
-- Scheduler mode exists (`crates/rhof-sync/src/lib.rs:1137`) but is operationally minimal (no daemon hardening/metrics).
+- Review resolution is durable when `DATABASE_URL` is configured in web mode (`crates/rhof-web/src/lib.rs:356`, `crates/rhof-web/src/lib.rs:647`).
+- Scheduler mode exists (`crates/rhof-sync/src/lib.rs:1137`) but is still operationally minimal (no daemon hardening/metrics).
 
 ### F) Packaging + Release Readiness (0–10): **6 / 10**
 - Workspace version/license metadata present (`Cargo.toml:12`, `Cargo.toml:15`).
@@ -147,7 +148,7 @@ Evidence:
 - Adapter generator/templates/checker and chunking workflow are strong long-term scaling investments (`crates/rhof-adapters/src/lib.rs:428`, `scripts/check_adapters.py:83`, `docs/RUNBOOK.md:33`).
 - Docs quality improved materially with architecture/data model content (`docs/ARCHITECTURE.md:3`, `docs/DATA_MODEL.md:3`).
 - Frontend baseline polish improved with committed CSS, independent of Tailwind build step (`assets/static/app.css:1`).
-- Remaining weakness is adapter realism breadth and incomplete review/dedup lifecycle persistence.
+- Remaining weakness is adapter realism breadth and limited automated coverage for duplicate/review persistence scenarios.
 
 ## 6. Priority Issues (P0–P3) (Prompt ID, Problem, Impact, Suggested Fix)
 
@@ -156,7 +157,7 @@ No `P0` or `P1` issues remain.
 | Issue ID | Priority | Prompt ID | Problem | Evidence | Impact | Suggested Fix |
 |---|---|---|---|---|---|---|
 | PFN-014 | P2 | `PROMPT_04`, `PROMPT_10` | Initial adapters now parse raw title/apply fields, but most canonical fields are still sourced from fixture `parsed_records`. | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | Parser resilience is only partially proven for real extraction logic. | Expand raw parser coverage (description/pay/requirements/constraints) incrementally while preserving snapshot tests. |
-| PFN-015 | P2 | `PROMPT_06`, `PROMPT_08` | Dedup review lifecycle is partially persisted (`review_items`) but cluster proposal tables are unused and review resolve endpoint is UI-only. | `crates/rhof-sync/src/lib.rs:898`, `migrations/20260223210000_init_schema.up.sql:106`, `crates/rhof-web/src/lib.rs:341` | Incomplete review/audit workflow and underused schema design. | Persist dedup clusters/members and make `/review/:id/resolve` update `review_items`. |
+| PFN-015 | P2 | `PROMPT_06`, `PROMPT_08` | Dedup cluster persistence and review resolve are implemented, but current fixtures rarely trigger duplicate/review cases, so the durable paths are under-tested in automation. | `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:356`, `scripts/check_adapters.py:84` | Regression risk remains for an important audit/review workflow despite code being present. | Add targeted duplicate/review fixtures plus an integration test covering sync -> review queue -> resolve. |
 | PFN-016 | P2 | `PROMPT_05`, `PROMPT_09` | Scheduler mode exists, but lacks operational hardening (status reporting/metrics/locking/retry policy). | `crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137` | Suitable for local use, but not yet trustworthy for unattended operation. | Add daemon logging/metrics, optional run locking, and explicit failure handling/backoff policy. |
 | PFN-017 | P3 | `PROMPT_10` | `sample-source` generator artifacts still live in repo and can be mistaken for a real adapter implementation outside docs. | `fixtures/sample-source/sample/bundle.json:1`, `crates/rhof-adapters/tests/sample-source_snapshot.rs:1` | Minor surface-area noise for contributors. | Move generator sample artifacts into `examples/` or delete/regenerate in tests as needed. |
 | PFN-018 | P3 | Packaging (cross-cutting) | Release/package hygiene is still minimal (no root `LICENSE` file/changelog/release checklist). | `Cargo.toml:15`, root scan (no `LICENSE*` / `CHANGELOG*`) | Lowers external credibility and onboarding confidence. | Add `LICENSE`, `CHANGELOG.md` stub, and a simple release checklist section in README/docs. |
@@ -197,12 +198,12 @@ No `P0` or `P1` issues remain.
 | # | Next step | Why it matters | Evidence anchor | Effort |
 |---|---|---|---|---|
 | 1 | Expand raw parser coverage beyond title/apply for the initial adapters | Biggest remaining completeness gain in adapter realism | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | M |
-| 2 | Persist dedup clusters/members and wire review lifecycle end-to-end | Completes review/audit workflow and uses existing schema | `migrations/20260223210000_init_schema.up.sql:106`, `crates/rhof-sync/src/lib.rs:898` | M |
-| 3 | Make `/review/:id/resolve` durable in Postgres | Aligns UI action with persisted review queue | `crates/rhof-web/src/lib.rs:341` | M |
-| 4 | Add scheduler hardening (run locks, retries/metrics/logging) | Moves scheduler from local/dev use toward unattended reliability | `crates/rhof-sync/src/lib.rs:1137` | M |
-| 5 | Add CI integration test for `migrate` + sync idempotency | Converts manual verification into regression protection | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676` | M |
-| 6 | Document report JSON + Parquet schemas | Improves downstream usability and product packaging | `crates/rhof-sync/src/lib.rs:1013` | S |
-| 7 | Decide fate of `sample-source` scaffolds (`examples/` vs remove) | Reduces contributor ambiguity | `docs/SOURCES.md:18` | S |
-| 8 | Add `LICENSE` file + changelog/release checklist | Improves external packaging credibility | `Cargo.toml:15` | S |
-| 9 | Add one-command demo script (`db-up` + `migrate` + `sync` + `serve`) | Sharpens onboarding/demo experience | `README.md:13`, `docs/RUNBOOK.md:5` | S |
-| 10 | Expand frontend visual polish via Tailwind build (optional) | Improves front-facing demo quality beyond baseline CSS | `assets/static/app.css:1`, `docs/RUNBOOK.md:45` | S |
+| 2 | Add targeted duplicate/review fixtures + automated integration coverage for durable review flow | Turns newly implemented dedup/review persistence into a protected regression path | `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:356` | M |
+| 3 | Add scheduler hardening (run locks, retries/metrics/logging) | Moves scheduler from local/dev use toward unattended reliability | `crates/rhof-sync/src/lib.rs:1137` | M |
+| 4 | Add CI integration test for `migrate` + sync idempotency | Converts manual verification into regression protection | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676` | M |
+| 5 | Document report JSON + Parquet schemas | Improves downstream usability and product packaging | `crates/rhof-sync/src/lib.rs:1013` | S |
+| 6 | Decide fate of `sample-source` scaffolds (`examples/` vs remove) | Reduces contributor ambiguity | `docs/SOURCES.md:18` | S |
+| 7 | Add `LICENSE` file + changelog/release checklist | Improves external packaging credibility | `Cargo.toml:15` | S |
+| 8 | Add one-command demo script (`db-up` + `migrate` + `sync` + `serve`) | Sharpens onboarding/demo experience | `README.md:13`, `docs/RUNBOOK.md:5` | S |
+| 9 | Expand frontend visual polish via Tailwind build (optional) | Improves front-facing demo quality beyond baseline CSS | `assets/static/app.css:1`, `docs/RUNBOOK.md:45` | S |
+| 10 | Add checksum verification to `tailwind-install` bootstrap | Hardens binary bootstrap safety for contributors | `scripts/install-tailwind.sh:31` | S |

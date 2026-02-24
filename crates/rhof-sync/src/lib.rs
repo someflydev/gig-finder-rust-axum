@@ -493,6 +493,7 @@ impl SyncPipeline {
         let staged = self.dedup.apply(staged)?;
         let staged = self.enrichment.apply(staged)?;
         let persisted_versions = self.persist_staged(&pool, &source_ids, &staged).await?;
+        self.persist_dedup_clusters(&pool, &staged).await?;
 
         let finished_at = Utc::now();
         let reports_dir = self.write_reports(run_id, started_at, finished_at, &enabled_sources, &staged).await?;
@@ -824,6 +825,129 @@ impl SyncPipeline {
         }
 
         Ok(inserted_versions)
+    }
+
+    async fn persist_dedup_clusters(&self, pool: &PgPool, staged: &[StagedOpportunity]) -> Result<()> {
+        if staged.len() < 2 {
+            return Ok(());
+        }
+        let canonical_to_opportunity = self
+            .load_opportunity_ids_by_canonical_keys(pool, staged)
+            .await
+            .context("loading opportunity ids for dedup cluster persistence")?;
+
+        let engine = DedupEngine::new(DedupConfig::default());
+        let (_items, auto_clusters, review_pairs) = engine.apply(staged.to_vec());
+
+        for cluster in auto_clusters {
+            self.upsert_cluster_and_members(
+                pool,
+                &canonical_to_opportunity,
+                &cluster.cluster_id,
+                "proposed",
+                cluster.confidence_score,
+                &cluster.members,
+            )
+            .await?;
+        }
+
+        for review in review_pairs {
+            let mut members = vec![review.canonical_key_a.clone(), review.canonical_key_b.clone()];
+            members.sort();
+            members.dedup();
+            let cluster_key = format!("review:{}|{}", members[0], members[1]);
+            self.upsert_cluster_and_members(
+                pool,
+                &canonical_to_opportunity,
+                &cluster_key,
+                "needs_review",
+                review.confidence_score,
+                &members,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn load_opportunity_ids_by_canonical_keys(
+        &self,
+        pool: &PgPool,
+        staged: &[StagedOpportunity],
+    ) -> Result<HashMap<String, Uuid>> {
+        let mut out = HashMap::new();
+        for item in staged {
+            if out.contains_key(&item.canonical_key) {
+                continue;
+            }
+            let row = sqlx::query(
+                r#"
+                SELECT id
+                  FROM opportunities
+                 WHERE canonical_key = $1
+                 ORDER BY created_at ASC
+                 LIMIT 1
+                "#,
+            )
+            .bind(&item.canonical_key)
+            .fetch_optional(pool)
+            .await
+            .with_context(|| format!("looking up opportunity id for {}", item.canonical_key))?;
+            if let Some(row) = row {
+                out.insert(item.canonical_key.clone(), row.try_get("id")?);
+            }
+        }
+        Ok(out)
+    }
+
+    async fn upsert_cluster_and_members(
+        &self,
+        pool: &PgPool,
+        canonical_to_opportunity: &HashMap<String, Uuid>,
+        cluster_key: &str,
+        status: &str,
+        confidence_score: f64,
+        members: &[String],
+    ) -> Result<()> {
+        let cluster_id = Uuid::new_v5(&Uuid::NAMESPACE_URL, cluster_key.as_bytes());
+        sqlx::query(
+            r#"
+            INSERT INTO dedup_clusters (id, confidence_score, status, created_at, updated_at)
+            VALUES ($1, $2, $3, NOW(), NOW())
+            ON CONFLICT (id) DO UPDATE
+              SET confidence_score = EXCLUDED.confidence_score,
+                  status = EXCLUDED.status,
+                  updated_at = NOW()
+            "#,
+        )
+        .bind(cluster_id)
+        .bind(confidence_score)
+        .bind(status)
+        .execute(pool)
+        .await
+        .with_context(|| format!("upserting dedup cluster {}", cluster_key))?;
+
+        for canonical_key in members {
+            let Some(opportunity_id) = canonical_to_opportunity.get(canonical_key).copied() else {
+                continue;
+            };
+            sqlx::query(
+                r#"
+                INSERT INTO dedup_cluster_members (dedup_cluster_id, opportunity_id, member_score, is_primary, created_at)
+                VALUES ($1, $2, $3, false, NOW())
+                ON CONFLICT (dedup_cluster_id, opportunity_id) DO UPDATE
+                  SET member_score = EXCLUDED.member_score
+                "#,
+            )
+            .bind(cluster_id)
+            .bind(opportunity_id)
+            .bind(confidence_score)
+            .execute(pool)
+            .await
+            .with_context(|| format!("upserting dedup cluster member {}", canonical_key))?;
+        }
+
+        Ok(())
     }
 
     async fn persist_tags(&self, pool: &PgPool, opportunity_id: Uuid, tags: &[String]) -> Result<()> {

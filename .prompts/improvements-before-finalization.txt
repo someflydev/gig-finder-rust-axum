@@ -1,4 +1,23 @@
 ---
+Timestamp: 2026-02-23T22:14:00-0600
+Summary: Implemented the next highest-leverage systems-completeness item: durable dedup cluster persistence (`dedup_clusters` / `dedup_cluster_members`) and DB-backed review queue resolution via `/review/{id}/resolve`. Re-validated with workspace build/tests, `rhof-cli sync`, and a live web+Postgres end-to-end resolve check (row status flipped from open to resolved when `DATABASE_URL` was present).
+Top 10 issues found:
+- P2: Duplicate/review persistence paths are now implemented but under-tested because current fixtures rarely trigger duplicate/review scenarios.
+- P2: Raw parser coverage is still shallow (mostly `title`/`apply_url`) across initial adapters.
+- P2: Scheduler mode remains minimally hardened (no run locks/metrics/retry policy).
+- P2: No automated DB integration test in CI for `migrate` + sync idempotency.
+- P3: Formal report JSON schema docs are still missing.
+- P3: Formal Parquet schema docs are still missing.
+- P3: `sample-source` generator artifacts remain in-tree and may confuse contributors.
+- P3: Root `LICENSE` file is still missing.
+- P3: Changelog/release checklist is still missing.
+- P3: Tailwind installer script would benefit from checksum verification.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `crates/rhof-sync/Cargo.toml` :: enabled `uuid` v5 feature :: supports deterministic dedup cluster IDs
+- `crates/rhof-sync/src/lib.rs` :: + dedup cluster/member persistence after staged sync persistence (`persist_dedup_clusters`, DB upserts) :: makes dedup schema tables actively used
+- `crates/rhof-web/src/lib.rs` :: review page now prefers DB-open review IDs and `/review/{id}/resolve` updates `review_items.status/resolved_at` when DB is configured :: makes review UI action durable
+- `POST_FLIGHT_REPORT.md` :: refreshed traceability/score/issues/next-steps to reflect delivered dedup cluster persistence + durable review resolve :: keeps audit current
+---
 Timestamp: 2026-02-23T20:10:01-0600
 Summary: Post-flight excellence audit of the full prompt plan (`.prompts/PROMPT_00_s.txt`..`PROMPT_10.txt`) against the as-built RHOF repository. Verified traceability, runtime entrypoints, tests, CI, docs, fixtures, adapter generator, and frontend artifacts; produced `POST_FLIGHT_REPORT.md` and `FRONT_FACING_IDEAS.md`.
 Top 10 issues found:

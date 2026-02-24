@@ -1,6 +1,6 @@
 //! Axum + Askama web UI for RHOF (PROMPT_08).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -327,18 +327,53 @@ async fn sources_handler(State(state): State<Arc<AppState>>) -> Response {
 async fn review_handler(State(state): State<Arc<AppState>>) -> Response {
     match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
-            let review_items = data
-                .opportunities
-                .into_iter()
-                .filter(|o| o.review_required)
-                .collect::<Vec<_>>();
+            let review_items = if let Some(pool) = connect_db_from_env().await {
+                match load_open_review_opportunity_ids_from_db(&pool).await {
+                    Ok(open_ids) => data
+                        .opportunities
+                        .into_iter()
+                        .filter(|o| open_ids.contains(&o.id))
+                        .collect::<Vec<_>>(),
+                    Err(_) => data
+                        .opportunities
+                        .into_iter()
+                        .filter(|o| o.review_required)
+                        .collect::<Vec<_>>(),
+                }
+            } else {
+                data
+                    .opportunities
+                    .into_iter()
+                    .filter(|o| o.review_required)
+                    .collect::<Vec<_>>()
+            };
             render_html(ReviewTemplate { review_items })
         }
         Err(err) => server_error(err),
     }
 }
 
-async fn review_resolve_handler(AxumPath(id): AxumPath<String>) -> Response {
+async fn review_resolve_handler(
+    State(_state): State<Arc<AppState>>,
+    AxumPath(id): AxumPath<String>,
+) -> Response {
+    if let Some(pool) = connect_db_from_env().await {
+        if let Err(err) = sqlx::query(
+            r#"
+            UPDATE review_items
+               SET status = 'resolved',
+                   resolved_at = NOW()
+             WHERE opportunity_id::text = $1
+               AND status = 'open'
+            "#,
+        )
+        .bind(&id)
+        .execute(&pool)
+        .await
+        {
+            return server_error(anyhow::anyhow!(format!("failed to resolve review item: {err}")));
+        }
+    }
     render_html(ReviewResolvePartialTemplate { review_id: id })
 }
 
@@ -605,6 +640,25 @@ async fn load_latest_opportunities_from_db(pool: &PgPool) -> anyhow::Result<Vec<
             tags: vec![],
             risk_flags: vec![],
         });
+    }
+    Ok(out)
+}
+
+async fn load_open_review_opportunity_ids_from_db(pool: &PgPool) -> anyhow::Result<HashSet<String>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT DISTINCT opportunity_id::text AS opportunity_id
+          FROM review_items
+         WHERE status = 'open'
+           AND opportunity_id IS NOT NULL
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut out = HashSet::with_capacity(rows.len());
+    for row in rows {
+        let id: String = row.try_get("opportunity_id")?;
+        out.insert(id);
     }
     Ok(out)
 }
