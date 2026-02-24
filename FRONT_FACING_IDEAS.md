@@ -58,7 +58,7 @@ Why this is different (5–7 bullets):
 
 Demo story (3–6 steps):
 - `just db-up`
-- Apply migration (or use `rhof-cli migrate` once implemented)
+- Apply migration with `just migrate` (or `cargo run -p rhof-cli -- migrate`)
 - `cargo run -p rhof-cli -- sync`
 - `cargo run -p rhof-cli -- report daily --runs 3`
 - `cargo run -p rhof-cli -- serve`
@@ -185,7 +185,7 @@ Scope:
 - Run lineage viewer that links `.prompts` intent -> generated artifacts -> reports/manifests.
 - Parquet manifest/browser with schema introspection and hash verification UI.
 - Adapter coverage dashboard (fixtures present, snapshot tests, evidence coverage, source status).
-- Read-model-backed UI once DB persistence is implemented (real review queue resolution, version history, provenance drill-down).
+- Read-model-backed UI expansion (real review queue resolution, version history, deeper provenance drill-down) building on the new DB-backed loaders.
 
 ### Don’t Build Yet (anti-scope)
 - Full auth/multi-tenant RBAC.
@@ -273,7 +273,7 @@ Integration with this repo:
 Why this is the best current fit:
 - The repo already has strong content artifacts (reports, manifests, fixtures, `.prompts`, docs) that map naturally to a content-first site.
 - Astro is excellent for documentation/showcase pages and can progressively add interactive islands for charts and artifact explorers.
-- It avoids overcommitting to a heavy SPA while the backend data model is still shifting from report JSON to DB persistence.
+- It avoids overcommitting to a heavy SPA while the backend continues evolving from mixed report JSON/DB views toward richer DB-backed read models.
 
 Integration plan (grounded in current assets)
 - Deployment shape (MVP): Static Astro site built from checked-in artifacts/docs + screenshots/GIFs; no auth.
@@ -305,5 +305,5 @@ Integration plan (grounded in current assets)
 - Publish one “artifact anatomy” example page (raw artifact path, fixture bundle, snapshot test, manifest entry).
 - Add README badges (CI, Rust version, license once `LICENSE` file exists).
 - Add a “Current status” box that explicitly states fixture-driven demo mode and DB persistence roadmap.
-- Add a one-command local demo script (after `migrate` is implemented) to reduce onboarding friction.
+- Add a one-command local demo script (`db-up` + `migrate` + `sync` + `serve`) to reduce onboarding friction.
 - Add a docs site deploy workflow (Astro static build) only after content stabilizes.

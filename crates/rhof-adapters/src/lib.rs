@@ -151,7 +151,7 @@ fn read_json_file<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T> {
     serde_json::from_str(&data).with_context(|| format!("parsing {}", path.display()))
 }
 
-fn deterministic_raw_artifact_id(bundle: &FixtureBundle) -> Uuid {
+pub fn deterministic_raw_artifact_id_for_bundle(bundle: &FixtureBundle) -> Uuid {
     let source = format!(
         "{}:{}:{}",
         bundle.source_id,
@@ -173,7 +173,7 @@ fn fixture_field_to_core<T: Clone>(
         Some(value) => Field::with_value_and_evidence(
             value.clone(),
             EvidenceRef {
-                raw_artifact_id: deterministic_raw_artifact_id(bundle),
+                raw_artifact_id: deterministic_raw_artifact_id_for_bundle(bundle),
                 source_url: bundle.captured_from_url.clone(),
                 selector_or_pointer: fixture.selector_or_pointer.clone(),
                 snippet: fixture.snippet.clone(),

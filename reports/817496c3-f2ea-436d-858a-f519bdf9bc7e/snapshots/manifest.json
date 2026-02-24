@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "name": "opportunities",
+      "path": "snapshots/opportunities.parquet",
+      "sha256": "779cc3185a7da5700936549152a8c4a98125e4fbc62d913b9874951fdb8c07e9",
+      "bytes": 3342
+    },
+    {
+      "name": "opportunity_versions",
+      "path": "snapshots/opportunity_versions.parquet",
+      "sha256": "ca1d92662094747e16f3c8cc67047ce9a06c803b8c059e35704249827486c44b",
+      "bytes": 2185
+    },
+    {
+      "name": "tags",
+      "path": "snapshots/tags.parquet",
+      "sha256": "690352dd93a0183df709d17a3efd4435550bffa21d03cd0e2b4d71828bf94ad3",
+      "bytes": 1210
+    },
+    {
+      "name": "sources",
+      "path": "snapshots/sources.parquet",
+      "sha256": "ff51e18e70b9bb9e3ae05befd4d43cf089fe6e4e6d3f824f7cdef67b0c972a31",
+      "bytes": 1836
+    }
+  ]
+}

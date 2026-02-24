@@ -20,6 +20,9 @@ migrate:
 sqlx-prepare:
     cargo sqlx prepare --workspace
 
+tailwind-install:
+    sh scripts/install-tailwind.sh
+
 sync:
     cargo run -p rhof-cli -- sync
 

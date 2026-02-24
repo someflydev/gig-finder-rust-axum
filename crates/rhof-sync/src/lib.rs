@@ -1,6 +1,6 @@
 //! Sync pipeline orchestration (PROMPT_05 staged implementation).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -11,10 +11,15 @@ use arrow_array::{BooleanArray, Float64Array, RecordBatch, StringArray, UInt32Ar
 use arrow_schema::{DataType, Field as ArrowField, Schema};
 use chrono::{DateTime, Utc};
 use parquet::arrow::ArrowWriter;
-use rhof_adapters::{adapter_for_source, load_fixture_bundle, load_manual_fixture_bundle, Crawlability, FixtureBundle};
+use rhof_adapters::{
+    adapter_for_source, deterministic_raw_artifact_id_for_bundle, load_fixture_bundle,
+    load_manual_fixture_bundle, Crawlability, FixtureBundle,
+};
 use rhof_core::OpportunityDraft;
 use rhof_storage::{ArtifactStore, HttpClientConfig, HttpFetcher};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use sqlx::{migrate::Migrator, PgPool, Row};
 use strsim::jaro_winkler;
 use tokio::fs;
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -23,6 +28,7 @@ use uuid::Uuid;
 use sha2::{Digest, Sha256};
 
 pub const CRATE_NAME: &str = "rhof-sync";
+static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SourceRegistry {
@@ -90,7 +96,7 @@ pub struct FetchRunRecord {
     pub persistence_mode: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StagedOpportunity {
     pub source_id: String,
     pub canonical_key: String,
@@ -437,6 +443,9 @@ impl SyncPipeline {
         let started_at = Utc::now();
         let run_id = Uuid::new_v4();
         let registry = self.load_source_registry().await?;
+        let pool = self.connect_db().await?;
+        let source_ids = self.upsert_sources(&pool, &registry.sources).await?;
+        self.insert_fetch_run_started(&pool, run_id, started_at).await?;
         let enabled_sources: Vec<_> = registry.sources.into_iter().filter(|s| s.enabled).collect();
 
         let mut fetched_artifacts = 0usize;
@@ -454,7 +463,11 @@ impl SyncPipeline {
                 load_fixture_bundle(&bundle_path)?
             };
 
-            self.store_fixture_raw_artifact(&bundle).await?;
+            let source_db_id = *source_ids
+                .get(&source.source_id)
+                .with_context(|| format!("source_id missing from upsert map: {}", source.source_id))?;
+            self.store_fixture_raw_artifact(&pool, run_id, source_db_id, &bundle)
+                .await?;
             fetched_artifacts += 1;
 
             let drafts = adapter.parse_listing(&bundle)?;
@@ -479,13 +492,22 @@ impl SyncPipeline {
 
         let staged = self.dedup.apply(staged)?;
         let staged = self.enrichment.apply(staged)?;
-        let persisted_versions = staged.len();
+        let persisted_versions = self.persist_staged(&pool, &source_ids, &staged).await?;
 
         let finished_at = Utc::now();
         let reports_dir = self.write_reports(run_id, started_at, finished_at, &enabled_sources, &staged).await?;
         let manifest_path = self
             .export_parquet_snapshots(&reports_dir, run_id, &enabled_sources, &staged)
             .await?;
+        self.insert_fetch_run_finished(
+            &pool,
+            run_id,
+            finished_at,
+            fetched_artifacts,
+            parsed_drafts,
+            persisted_versions,
+        )
+        .await?;
 
         Ok(SyncRunSummary {
             run_id,
@@ -543,23 +565,378 @@ impl SyncPipeline {
         }
     }
 
-    async fn store_fixture_raw_artifact(&self, bundle: &FixtureBundle) -> Result<()> {
+    async fn connect_db(&self) -> Result<PgPool> {
+        PgPool::connect(&self.config.database_url)
+            .await
+            .with_context(|| format!("connecting to {}", self.config.database_url))
+    }
+
+    async fn upsert_sources(
+        &self,
+        pool: &PgPool,
+        sources: &[SourceConfig],
+    ) -> Result<HashMap<String, Uuid>> {
+        let mut out = HashMap::new();
+        for src in sources {
+            let config_json = json!({
+                "mode": src.mode,
+                "listing_urls": src.listing_urls,
+                "detail_url_patterns": src.detail_url_patterns,
+                "notes": src.notes,
+            });
+            let row = sqlx::query(
+                r#"
+                INSERT INTO sources (source_id, display_name, crawlability, enabled, config_json, updated_at)
+                VALUES ($1, $2, $3, $4, $5::jsonb, NOW())
+                ON CONFLICT (source_id) DO UPDATE
+                  SET display_name = EXCLUDED.display_name,
+                      crawlability = EXCLUDED.crawlability,
+                      enabled = EXCLUDED.enabled,
+                      config_json = EXCLUDED.config_json,
+                      updated_at = NOW()
+                RETURNING id
+                "#,
+            )
+            .bind(&src.source_id)
+            .bind(&src.display_name)
+            .bind(format!("{:?}", src.crawlability))
+            .bind(src.enabled)
+            .bind(config_json)
+            .fetch_one(pool)
+            .await
+            .with_context(|| format!("upserting source {}", src.source_id))?;
+            out.insert(src.source_id.clone(), row.try_get("id")?);
+        }
+        Ok(out)
+    }
+
+    async fn insert_fetch_run_started(&self, pool: &PgPool, run_id: Uuid, started_at: DateTime<Utc>) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO fetch_runs (id, started_at, status, summary_json, created_at)
+            VALUES ($1, $2, 'started', '{}'::jsonb, NOW())
+            ON CONFLICT (id) DO NOTHING
+            "#,
+        )
+        .bind(run_id)
+        .bind(started_at)
+        .execute(pool)
+        .await
+        .context("inserting fetch_runs started row")?;
+        Ok(())
+    }
+
+    async fn insert_fetch_run_finished(
+        &self,
+        pool: &PgPool,
+        run_id: Uuid,
+        finished_at: DateTime<Utc>,
+        fetched_artifacts: usize,
+        parsed_drafts: usize,
+        persisted_versions: usize,
+    ) -> Result<()> {
+        let summary = json!({
+            "fetched_artifacts": fetched_artifacts,
+            "parsed_drafts": parsed_drafts,
+            "persisted_versions": persisted_versions,
+            "database_url": self.config.database_url,
+        });
+        sqlx::query(
+            r#"
+            UPDATE fetch_runs
+               SET finished_at = $2,
+                   status = 'completed',
+                   summary_json = $3::jsonb
+             WHERE id = $1
+            "#,
+        )
+        .bind(run_id)
+        .bind(finished_at)
+        .bind(summary)
+        .execute(pool)
+        .await
+        .context("updating fetch_runs finished row")?;
+        Ok(())
+    }
+
+    async fn persist_staged(
+        &self,
+        pool: &PgPool,
+        source_ids: &HashMap<String, Uuid>,
+        staged: &[StagedOpportunity],
+    ) -> Result<usize> {
+        let mut inserted_versions = 0usize;
+        for item in staged {
+            let source_db_id = *source_ids
+                .get(&item.source_id)
+                .with_context(|| format!("missing source db id for {}", item.source_id))?;
+
+            let op_row = sqlx::query(
+                r#"
+                SELECT id, current_version_id
+                  FROM opportunities
+                 WHERE canonical_key = $1
+                 ORDER BY created_at ASC
+                 LIMIT 1
+                "#,
+            )
+            .bind(&item.canonical_key)
+            .fetch_optional(pool)
+            .await
+            .with_context(|| format!("loading opportunity {}", item.canonical_key))?;
+
+            let opportunity_id = if let Some(row) = op_row {
+                let id: Uuid = row.try_get("id")?;
+                sqlx::query(
+                    r#"
+                    UPDATE opportunities
+                       SET source_id = $2,
+                           apply_url = $3,
+                           last_seen_at = NOW(),
+                           updated_at = NOW()
+                     WHERE id = $1
+                    "#,
+                )
+                .bind(id)
+                .bind(source_db_id)
+                .bind(item.draft.apply_url.value.as_deref())
+                .execute(pool)
+                .await
+                .with_context(|| format!("updating opportunity {}", item.canonical_key))?;
+                id
+            } else {
+                let row = sqlx::query(
+                    r#"
+                    INSERT INTO opportunities (source_id, canonical_key, apply_url, status, first_seen_at, last_seen_at, created_at, updated_at)
+                    VALUES ($1, $2, $3, 'active', NOW(), NOW(), NOW(), NOW())
+                    RETURNING id
+                    "#,
+                )
+                .bind(source_db_id)
+                .bind(&item.canonical_key)
+                .bind(item.draft.apply_url.value.as_deref())
+                .fetch_one(pool)
+                .await
+                .with_context(|| format!("inserting opportunity {}", item.canonical_key))?;
+                row.try_get("id")?
+            };
+
+            let raw_artifact_id = draft_raw_artifact_id(&item.draft);
+            let data_json = serde_json::to_value(item).context("serializing staged opportunity")?;
+            let evidence_json = serde_json::to_value(&item.draft).context("serializing evidence payload")?;
+
+            let latest_version_row = sqlx::query(
+                r#"
+                SELECT id, version_no, data_json
+                  FROM opportunity_versions
+                 WHERE opportunity_id = $1
+                 ORDER BY version_no DESC
+                 LIMIT 1
+                "#,
+            )
+            .bind(opportunity_id)
+            .fetch_optional(pool)
+            .await
+            .with_context(|| format!("loading latest version for {}", item.canonical_key))?;
+
+            let current_version_id: Option<Uuid> = if let Some(row) = latest_version_row {
+                let existing_id: Uuid = row.try_get("id")?;
+                let existing_data: serde_json::Value = row.try_get("data_json")?;
+                if existing_data != data_json {
+                    let latest_version_no: i32 = row.try_get("version_no")?;
+                    let new_version_id = Uuid::new_v4();
+                    sqlx::query(
+                        r#"
+                        INSERT INTO opportunity_versions (id, opportunity_id, raw_artifact_id, version_no, data_json, diff_json, evidence_json, created_at)
+                        VALUES ($1, $2, $3, $4, $5::jsonb, '{}'::jsonb, $6::jsonb, NOW())
+                        "#,
+                    )
+                    .bind(new_version_id)
+                    .bind(opportunity_id)
+                    .bind(raw_artifact_id)
+                    .bind(latest_version_no + 1)
+                    .bind(data_json.clone())
+                    .bind(evidence_json.clone())
+                    .execute(pool)
+                    .await
+                    .with_context(|| format!("inserting opportunity version {}", item.canonical_key))?;
+                    inserted_versions += 1;
+                    Some(new_version_id)
+                } else {
+                    Some(existing_id)
+                }
+            } else {
+                let new_version_id = Uuid::new_v4();
+                sqlx::query(
+                    r#"
+                    INSERT INTO opportunity_versions (id, opportunity_id, raw_artifact_id, version_no, data_json, diff_json, evidence_json, created_at)
+                    VALUES ($1, $2, $3, 1, $4::jsonb, '{}'::jsonb, $5::jsonb, NOW())
+                    "#,
+                )
+                .bind(new_version_id)
+                .bind(opportunity_id)
+                .bind(raw_artifact_id)
+                .bind(data_json.clone())
+                .bind(evidence_json.clone())
+                .execute(pool)
+                .await
+                .with_context(|| format!("inserting first opportunity version {}", item.canonical_key))?;
+                inserted_versions += 1;
+                Some(new_version_id)
+            };
+
+            sqlx::query(
+                r#"
+                UPDATE opportunities
+                   SET current_version_id = $2,
+                       source_id = $3,
+                       apply_url = $4,
+                       last_seen_at = NOW(),
+                       updated_at = NOW()
+                 WHERE id = $1
+                "#,
+            )
+            .bind(opportunity_id)
+            .bind(current_version_id)
+            .bind(source_db_id)
+            .bind(item.draft.apply_url.value.as_deref())
+            .execute(pool)
+            .await
+            .with_context(|| format!("updating current version for {}", item.canonical_key))?;
+
+            self.persist_tags(pool, opportunity_id, &item.tags).await?;
+            self.persist_risk_flags(pool, opportunity_id, &item.risk_flags).await?;
+            self.persist_review_item(pool, opportunity_id, item).await?;
+        }
+
+        Ok(inserted_versions)
+    }
+
+    async fn persist_tags(&self, pool: &PgPool, opportunity_id: Uuid, tags: &[String]) -> Result<()> {
+        for tag in tags {
+            let row = sqlx::query(
+                r#"
+                INSERT INTO tags (key, label, created_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (key) DO UPDATE SET label = EXCLUDED.label
+                RETURNING id
+                "#,
+            )
+            .bind(tag)
+            .bind(tag)
+            .fetch_one(pool)
+            .await
+            .with_context(|| format!("upserting tag {}", tag))?;
+            let tag_id: Uuid = row.try_get("id")?;
+            sqlx::query(
+                r#"
+                INSERT INTO opportunity_tags (opportunity_id, tag_id, created_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (opportunity_id, tag_id) DO NOTHING
+                "#,
+            )
+            .bind(opportunity_id)
+            .bind(tag_id)
+            .execute(pool)
+            .await
+            .context("linking opportunity tag")?;
+        }
+        Ok(())
+    }
+
+    async fn persist_risk_flags(
+        &self,
+        pool: &PgPool,
+        opportunity_id: Uuid,
+        flags: &[String],
+    ) -> Result<()> {
+        for flag in flags {
+            let row = sqlx::query(
+                r#"
+                INSERT INTO risk_flags (key, label, severity, created_at)
+                VALUES ($1, $2, 'info', NOW())
+                ON CONFLICT (key) DO UPDATE SET label = EXCLUDED.label
+                RETURNING id
+                "#,
+            )
+            .bind(flag)
+            .bind(flag)
+            .fetch_one(pool)
+            .await
+            .with_context(|| format!("upserting risk flag {}", flag))?;
+            let flag_id: Uuid = row.try_get("id")?;
+            sqlx::query(
+                r#"
+                INSERT INTO opportunity_risk_flags (opportunity_id, risk_flag_id, reason, created_at)
+                VALUES ($1, $2, NULL, NOW())
+                ON CONFLICT (opportunity_id, risk_flag_id) DO NOTHING
+                "#,
+            )
+            .bind(opportunity_id)
+            .bind(flag_id)
+            .execute(pool)
+            .await
+            .context("linking opportunity risk flag")?;
+        }
+        Ok(())
+    }
+
+    async fn persist_review_item(&self, pool: &PgPool, opportunity_id: Uuid, item: &StagedOpportunity) -> Result<()> {
+        if !item.review_required {
+            return Ok(());
+        }
+        let existing = sqlx::query(
+            r#"
+            SELECT id
+              FROM review_items
+             WHERE opportunity_id = $1
+               AND item_type = 'dedup_review'
+               AND status = 'open'
+             LIMIT 1
+            "#,
+        )
+        .bind(opportunity_id)
+        .fetch_optional(pool)
+        .await
+        .context("checking existing review item")?;
+        if existing.is_some() {
+            return Ok(());
+        }
+        let payload = json!({
+            "canonical_key": item.canonical_key,
+            "dedup_confidence": item.dedup_confidence,
+            "source_id": item.source_id,
+        });
+        sqlx::query(
+            r#"
+            INSERT INTO review_items (item_type, status, opportunity_id, payload_json, created_at)
+            VALUES ('dedup_review', 'open', $1, $2::jsonb, NOW())
+            "#,
+        )
+        .bind(opportunity_id)
+        .bind(payload)
+        .execute(pool)
+        .await
+        .context("inserting review item")?;
+        Ok(())
+    }
+
+    async fn store_fixture_raw_artifact(
+        &self,
+        pool: &PgPool,
+        run_id: Uuid,
+        source_db_id: Uuid,
+        bundle: &FixtureBundle,
+    ) -> Result<()> {
         let bytes = if let Some(inline_text) = &bundle.raw_artifact.inline_text {
             inline_text.as_bytes().to_vec()
         } else if let Some(rel_path) = &bundle.raw_artifact.path {
-            let bundle_base = if bundle.source_id == "prolific" {
-                self.config
-                    .workspace_root
-                    .join("fixtures")
-                    .join(&bundle.source_id)
-                    .join("sample")
-            } else {
-                self.config
-                    .workspace_root
-                    .join("fixtures")
-                    .join(&bundle.source_id)
-                    .join("sample")
-            };
+            let bundle_base = self
+                .config
+                .workspace_root
+                .join("fixtures")
+                .join(&bundle.source_id)
+                .join("sample");
             let raw_path = bundle_base.join(rel_path);
             fs::read(&raw_path)
                 .await
@@ -573,10 +950,44 @@ impl SyncPipeline {
             "application/json" => "json",
             _ => "bin",
         };
-        let _stored = self
+        let stored = self
             .artifact_store
             .store_bytes(bundle.fetched_at, &bundle.source_id, ext, &bytes)
             .await?;
+        let raw_artifact_id = deterministic_raw_artifact_id_for_bundle(bundle);
+        sqlx::query(
+            r#"
+            INSERT INTO raw_artifacts (
+                id, fetch_run_id, source_id, source_url, storage_path, content_type, content_hash,
+                http_status, byte_size, fetched_at, metadata_json, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9, $10::jsonb, NOW())
+            ON CONFLICT (id) DO UPDATE
+              SET storage_path = EXCLUDED.storage_path,
+                  content_type = EXCLUDED.content_type,
+                  content_hash = EXCLUDED.content_hash,
+                  byte_size = EXCLUDED.byte_size,
+                  fetched_at = EXCLUDED.fetched_at,
+                  metadata_json = EXCLUDED.metadata_json
+            "#,
+        )
+        .bind(raw_artifact_id)
+        .bind(run_id)
+        .bind(source_db_id)
+        .bind(&bundle.captured_from_url)
+        .bind(stored.relative_path.display().to_string())
+        .bind(&bundle.raw_artifact.content_type)
+        .bind(&stored.content_hash)
+        .bind(stored.byte_size as i64)
+        .bind(bundle.fetched_at)
+        .bind(json!({
+            "fixture_id": bundle.fixture_id,
+            "extractor_version": bundle.extractor_version,
+            "evidence_coverage_percent": bundle.evidence_coverage_percent,
+        }))
+        .execute(pool)
+        .await
+        .with_context(|| format!("upserting raw artifact row for {}", bundle.source_id))?;
         Ok(())
     }
 
@@ -599,7 +1010,7 @@ impl SyncPipeline {
             finished_at,
             status: "completed".to_string(),
             database_url: self.config.database_url.clone(),
-            persistence_mode: "staged-report-only (DB persistence wiring lands in later prompts)".to_string(),
+            persistence_mode: "db-persisted + reports/parquet export".to_string(),
         };
 
         let mut source_counts: BTreeMap<String, usize> = BTreeMap::new();
@@ -677,6 +1088,29 @@ impl SyncPipeline {
         let _ = run_id;
         Ok(manifest_path)
     }
+}
+
+fn draft_raw_artifact_id(draft: &OpportunityDraft) -> Option<Uuid> {
+    [
+        &draft.title.evidence,
+        &draft.description.evidence,
+        &draft.pay_model.evidence,
+        &draft.currency.evidence,
+        &draft.apply_url.evidence,
+    ]
+    .into_iter()
+    .flatten()
+    .map(|e| e.raw_artifact_id)
+    .next()
+}
+
+pub async fn apply_migrations_from_env() -> Result<()> {
+    let cfg = SyncConfig::from_env();
+    let pool = PgPool::connect(&cfg.database_url)
+        .await
+        .with_context(|| format!("connecting to {}", cfg.database_url))?;
+    MIGRATOR.run(&pool).await.context("running sqlx migrations")?;
+    Ok(())
 }
 
 pub async fn run_sync_once_from_env() -> Result<SyncRunSummary> {

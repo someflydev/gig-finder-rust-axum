@@ -72,7 +72,8 @@ async fn main() -> Result<()> {
             println!("{info}");
         }
         Commands::Migrate => {
-            eprintln!("migrate command scaffolded; sqlx wiring lands in later prompts");
+            rhof_sync::apply_migrations_from_env().await?;
+            println!("migrations applied");
         }
         Commands::Serve => {
             rhof_web::serve_from_env().await?;

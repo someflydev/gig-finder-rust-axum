@@ -15,3 +15,29 @@ Top 10 issues found:
 If you applied any fixes during this run, list them with file paths + brief diff-style notes:
 - None (audit/reporting only; no repo code/docs behavior changes applied in this run).
 ---
+---
+Timestamp: 2026-02-23T21:37:11-0600
+Summary: Applied prior P0/P1 fixes from the post-flight audit: sqlx-backed migrations and DB persistence, DB-preferred web loaders, Tailwind standalone installer/bootstrap workflow, and docs/quickstart updates. Re-verified with `cargo build`, `cargo test --workspace`, `rhof-cli migrate`, repeated `rhof-cli sync`, and Postgres row-count checks.
+Top 10 issues found:
+- P2: Scheduler exists but still does not execute sync jobs (`maybe_build_scheduler` logs only).
+- P2: Adapters remain fixture replay parsers; raw artifact parsing is not implemented yet.
+- P2: Adapter CI checks do not enforce evidence coverage threshold or parser correctness.
+- P2: `sqlx-prepare` contributor workflow is still under-documented / not query-macro-based yet.
+- P2: CLI naming inconsistency (`rhof` vs `rhof-cli`) remains in prompts/docs.
+- P2: `docs/ARCHITECTURE.md` placeholder content remains.
+- P2: `docs/DATA_MODEL.md` placeholder content remains.
+- P3: `sample-source` generator scaffold remains in primary docs/source list.
+- P3: Frontend visual polish is still minimal (Tailwind CSS file remains placeholder until build step is run).
+- P3: Release packaging hygiene (LICENSE/changelog/checklist) is still missing.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `crates/rhof-sync/src/lib.rs` :: + sqlx embedded migrator + DB upsert/persistence path (sources/fetch_runs/raw_artifacts/opportunities/opportunity_versions/tags/risk_flags/review_items) :: fixes migrate stub and staged-only persistence
+- `crates/rhof-cli/src/main.rs` :: `migrate` command now calls `rhof_sync::apply_migrations_from_env()` :: makes `just migrate` real
+- `crates/rhof-web/src/lib.rs` :: dashboard loaders now prefer Postgres-backed sources/opportunities with YAML/report fallback :: fixes report-only web data path
+- `crates/rhof-sync/Cargo.toml`, `crates/rhof-web/Cargo.toml`, `Cargo.lock` :: + `sqlx` dependencies/features :: enables runtime DB integration and embedded migrations
+- `migrations/20260223210000_init_schema.up.sql` :: `IF NOT EXISTS` + conditional FK constraint block :: makes initial migration idempotent against pre-existing schema
+- `justfile` :: + `tailwind-install` target :: provides reproducible Tailwind binary bootstrap
+- `scripts/install-tailwind.sh` :: new standalone Tailwind downloader (version-pinned) :: fixes missing binary bootstrap path
+- `README.md`, `docs/RUNBOOK.md` :: quickstart/runbook updated to `just migrate` + Tailwind install workflow :: removes outdated manual migration guidance
+- `assets/tailwind/tailwind.config.js` :: fixed template content glob path :: aligns Tailwind scan paths with actual template location
+- `POST_FLIGHT_REPORT.md`, `FRONT_FACING_IDEAS.md` :: refreshed after fix round with updated scoring/findings/directions :: re-ran post-flight audit loop
+---

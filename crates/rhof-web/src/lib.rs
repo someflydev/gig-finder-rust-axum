@@ -12,7 +12,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use rhof_sync::StagedOpportunity;
 use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Row};
 use tokio::net::TcpListener;
 
 pub const CRATE_NAME: &str = "rhof-web";
@@ -213,7 +215,7 @@ pub async fn serve_from_env() -> anyhow::Result<()> {
 }
 
 async fn index_handler(State(state): State<Arc<AppState>>) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
             let tpl = IndexTemplate {
                 total_sources: data.sources.len(),
@@ -231,7 +233,7 @@ async fn opportunities_page_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<OpportunitiesQuery>,
 ) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
             let (_page_rows, _source_counts, selected_source, page, _total_pages) =
                 filtered_paginated_opportunities(&data.opportunities, &query);
@@ -248,7 +250,7 @@ async fn opportunities_table_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<OpportunitiesQuery>,
 ) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
             let (page_rows, _source_counts, _selected_source, page, total_pages) =
                 filtered_paginated_opportunities(&data.opportunities, &query);
@@ -271,7 +273,7 @@ async fn opportunities_facets_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<OpportunitiesQuery>,
 ) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
             let (_rows, source_counts, selected_source, _page, _total_pages) =
                 filtered_paginated_opportunities(&data.opportunities, &query);
@@ -289,7 +291,7 @@ async fn opportunity_detail_handler(
     State(state): State<Arc<AppState>>,
     AxumPath(id): AxumPath<String>,
 ) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
             if let Some(opportunity) = data.opportunities.into_iter().find(|o| o.id == id) {
                 let tags_text = if opportunity.tags.is_empty() {
@@ -316,14 +318,14 @@ async fn opportunity_detail_handler(
 }
 
 async fn sources_handler(State(state): State<Arc<AppState>>) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => render_html(SourcesTemplate { sources: data.sources }),
         Err(err) => server_error(err),
     }
 }
 
 async fn review_handler(State(state): State<Arc<AppState>>) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
             let review_items = data
                 .opportunities
@@ -341,14 +343,14 @@ async fn review_resolve_handler(AxumPath(id): AxumPath<String>) -> Response {
 }
 
 async fn reports_handler(State(state): State<Arc<AppState>>) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => render_html(ReportsTemplate { runs: data.runs }),
         Err(err) => server_error(err),
     }
 }
 
 async fn reports_chart_handler(State(state): State<Arc<AppState>>) -> Response {
-    match load_dashboard_data(&state.workspace_root) {
+    match load_dashboard_data(&state.workspace_root).await {
         Ok(data) => {
             let x = data.runs.iter().map(|r| r.run_id.clone()).collect::<Vec<_>>();
             let y = data.runs.iter().map(|r| r.opportunities as i64).collect::<Vec<_>>();
@@ -398,10 +400,25 @@ fn server_error(err: anyhow::Error) -> Response {
         .into_response()
 }
 
-fn load_dashboard_data(workspace_root: &Path) -> anyhow::Result<DashboardData> {
-    let sources = load_sources(workspace_root)?;
+async fn load_dashboard_data(workspace_root: &Path) -> anyhow::Result<DashboardData> {
     let runs = load_runs(workspace_root, 20)?;
-    let opportunities = load_latest_opportunities(workspace_root)?;
+    let db_pool = connect_db_from_env().await;
+    let sources = if let Some(pool) = &db_pool {
+        match load_sources_from_db(pool).await {
+            Ok(rows) if !rows.is_empty() => rows,
+            _ => load_sources_from_yaml(workspace_root)?,
+        }
+    } else {
+        load_sources_from_yaml(workspace_root)?
+    };
+    let opportunities = if let Some(pool) = &db_pool {
+        match load_latest_opportunities_from_db(pool).await {
+            Ok(rows) if !rows.is_empty() => rows,
+            _ => load_latest_opportunities_from_reports(workspace_root)?,
+        }
+    } else {
+        load_latest_opportunities_from_reports(workspace_root)?
+    };
     Ok(DashboardData {
         sources,
         opportunities,
@@ -409,11 +426,56 @@ fn load_dashboard_data(workspace_root: &Path) -> anyhow::Result<DashboardData> {
     })
 }
 
-fn load_sources(workspace_root: &Path) -> anyhow::Result<Vec<SourceRow>> {
+async fn connect_db_from_env() -> Option<PgPool> {
+    let database_url = std::env::var("DATABASE_URL").ok()?;
+    PgPool::connect(&database_url).await.ok()
+}
+
+fn load_sources_from_yaml(workspace_root: &Path) -> anyhow::Result<Vec<SourceRow>> {
     let path = workspace_root.join("sources.yaml");
     let yaml = std::fs::read_to_string(&path)?;
     let parsed: SourcesYaml = serde_yaml::from_str(&yaml)?;
     Ok(parsed.sources)
+}
+
+async fn load_sources_from_db(pool: &PgPool) -> anyhow::Result<Vec<SourceRow>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT source_id, display_name, enabled, crawlability, config_json
+          FROM sources
+         ORDER BY source_id
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let config_json: serde_json::Value = row.try_get("config_json")?;
+        let listing_urls = config_json
+            .get("listing_urls")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(ToString::to_string))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mode = config_json
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("crawler")
+            .to_string();
+        out.push(SourceRow {
+            source_id: row.try_get("source_id")?,
+            display_name: row.try_get("display_name")?,
+            enabled: row.try_get("enabled")?,
+            crawlability: row.try_get("crawlability")?,
+            mode,
+            listing_urls,
+        });
+    }
+    Ok(out)
 }
 
 fn load_runs(workspace_root: &Path, limit: usize) -> anyhow::Result<Vec<RunReportRow>> {
@@ -451,7 +513,7 @@ fn load_runs(workspace_root: &Path, limit: usize) -> anyhow::Result<Vec<RunRepor
     Ok(runs)
 }
 
-fn load_latest_opportunities(workspace_root: &Path) -> anyhow::Result<Vec<WebOpportunity>> {
+fn load_latest_opportunities_from_reports(workspace_root: &Path) -> anyhow::Result<Vec<WebOpportunity>> {
     let latest_run = load_runs(workspace_root, 1)?.into_iter().next();
     let Some(run) = latest_run else { return Ok(vec![]); };
     let delta_path = workspace_root
@@ -478,6 +540,73 @@ fn load_latest_opportunities(workspace_root: &Path) -> anyhow::Result<Vec<WebOpp
             risk_flags: o.risk_flags,
         })
         .collect())
+}
+
+async fn load_latest_opportunities_from_db(pool: &PgPool) -> anyhow::Result<Vec<WebOpportunity>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT o.id::text AS id,
+               COALESCE(s.source_id, '') AS source_id,
+               o.canonical_key,
+               ov.data_json
+          FROM opportunities o
+          LEFT JOIN sources s ON s.id = o.source_id
+          LEFT JOIN opportunity_versions ov ON ov.id = o.current_version_id
+         ORDER BY o.updated_at DESC, o.created_at DESC
+         LIMIT 500
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let id: String = row.try_get("id")?;
+        let source_id: String = row.try_get("source_id")?;
+        let canonical_key: String = row.try_get("canonical_key")?;
+        let data_json: Option<serde_json::Value> = row.try_get("data_json")?;
+
+        if let Some(value) = data_json {
+            if let Ok(staged) = serde_json::from_value::<StagedOpportunity>(value) {
+                out.push(WebOpportunity {
+                    id,
+                    source_id: if source_id.is_empty() { staged.source_id.clone() } else { source_id },
+                    title: staged
+                        .draft
+                        .title
+                        .value
+                        .clone()
+                        .unwrap_or_else(|| staged.canonical_key.clone()),
+                    pay_model: staged.draft.pay_model.value.clone(),
+                    pay_rate_min: staged.draft.pay_rate_min.value,
+                    pay_rate_max: staged.draft.pay_rate_max.value,
+                    currency: staged.draft.currency.value.clone(),
+                    apply_url: staged.draft.apply_url.value.clone(),
+                    review_required: staged.review_required,
+                    dedup_confidence: staged.dedup_confidence,
+                    tags: staged.tags.clone(),
+                    risk_flags: staged.risk_flags.clone(),
+                });
+                continue;
+            }
+        }
+
+        out.push(WebOpportunity {
+            id,
+            source_id,
+            title: canonical_key.clone(),
+            pay_model: None,
+            pay_rate_min: None,
+            pay_rate_max: None,
+            currency: None,
+            apply_url: None,
+            review_required: false,
+            dedup_confidence: None,
+            tags: vec![],
+            risk_flags: vec![],
+        });
+    }
+    Ok(out)
 }
 
 fn filtered_paginated_opportunities(

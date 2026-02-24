@@ -5,7 +5,7 @@
 ### Database
 
 1. Start Postgres: `just db-up` (host port `5401`)
-2. Run migrations (sqlx wiring scaffolded): `just migrate`
+2. Run migrations: `just migrate`
 3. Stop Postgres: `just db-down`
 
 ### Sync / Reports
@@ -34,3 +34,8 @@
 7. Run tests
 8. Run local sync + report
 9. Expand in chunks of 3-5 sources; after chunk 1, ensure end-to-end sync + report + web smoke checks before continuing
+
+## Frontend Assets
+
+1. Install standalone Tailwind binary (once per machine): `just tailwind-install`
+2. Rebuild CSS: `just tailwind`
