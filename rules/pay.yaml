@@ -1,2 +1,8 @@
 version: 1
-rules: []
+rules:
+  - pay_model_hint: hourly
+    normalize_to: hourly
+  - pay_model_hint: fixed
+    normalize_to: fixed
+  - pay_model_hint: task-based
+    normalize_to: task_based

@@ -10,6 +10,7 @@ use rhof_adapters::{adapter_for_source, load_fixture_bundle, load_manual_fixture
 use rhof_core::OpportunityDraft;
 use rhof_storage::{ArtifactStore, HttpClientConfig, HttpFetcher};
 use serde::{Deserialize, Serialize};
+use strsim::jaro_winkler;
 use tokio::fs;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::warn;
@@ -88,6 +89,10 @@ pub struct StagedOpportunity {
     pub source_id: String,
     pub canonical_key: String,
     pub version_no: u32,
+    pub dedup_confidence: Option<f64>,
+    pub review_required: bool,
+    pub tags: Vec<String>,
+    pub risk_flags: Vec<String>,
     pub draft: OpportunityDraft,
 }
 
@@ -125,6 +130,249 @@ pub struct NoopEnrichmentHook;
 
 impl EnrichmentHook for NoopEnrichmentHook {
     fn apply(&self, items: Vec<StagedOpportunity>) -> Result<Vec<StagedOpportunity>> {
+        Ok(items)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DedupReviewItem {
+    pub canonical_key_a: String,
+    pub canonical_key_b: String,
+    pub confidence_score: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DedupClusterProposal {
+    pub cluster_id: String,
+    pub confidence_score: f64,
+    pub members: Vec<String>,
+    pub review_required: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DedupConfig {
+    pub auto_cluster_threshold: f64,
+    pub review_threshold: f64,
+}
+
+impl Default for DedupConfig {
+    fn default() -> Self {
+        Self {
+            auto_cluster_threshold: 0.95,
+            review_threshold: 0.85,
+        }
+    }
+}
+
+pub struct DedupEngine {
+    config: DedupConfig,
+}
+
+impl DedupEngine {
+    pub fn new(config: DedupConfig) -> Self {
+        Self { config }
+    }
+
+    pub fn normalize_key_fragment(input: &str) -> String {
+        input
+            .to_ascii_lowercase()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { ' ' })
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    pub fn similarity(&self, a: &StagedOpportunity, b: &StagedOpportunity) -> f64 {
+        let ka = Self::normalize_key_fragment(&a.canonical_key);
+        let kb = Self::normalize_key_fragment(&b.canonical_key);
+        let title_a = a.draft.title.value.as_deref().unwrap_or_default();
+        let title_b = b.draft.title.value.as_deref().unwrap_or_default();
+        let title_score = jaro_winkler(title_a, title_b);
+        let key_score = jaro_winkler(&ka, &kb);
+        (title_score * 0.7) + (key_score * 0.3)
+    }
+
+    pub fn apply(
+        &self,
+        mut items: Vec<StagedOpportunity>,
+    ) -> (Vec<StagedOpportunity>, Vec<DedupClusterProposal>, Vec<DedupReviewItem>) {
+        let mut clusters = Vec::new();
+        let mut review_items = Vec::new();
+
+        for i in 0..items.len() {
+            for j in (i + 1)..items.len() {
+                let score = self.similarity(&items[i], &items[j]);
+                if score >= self.config.auto_cluster_threshold {
+                    let cluster_id = format!(
+                        "cluster-{}-{}",
+                        items[i].canonical_key.replace(':', "_"),
+                        items[j].canonical_key.replace(':', "_")
+                    );
+                    clusters.push(DedupClusterProposal {
+                        cluster_id,
+                        confidence_score: score,
+                        members: vec![items[i].canonical_key.clone(), items[j].canonical_key.clone()],
+                        review_required: false,
+                    });
+                    items[i].dedup_confidence = Some(score);
+                    items[j].dedup_confidence = Some(score);
+                } else if score >= self.config.review_threshold {
+                    review_items.push(DedupReviewItem {
+                        canonical_key_a: items[i].canonical_key.clone(),
+                        canonical_key_b: items[j].canonical_key.clone(),
+                        confidence_score: score,
+                    });
+                    items[i].review_required = true;
+                    items[j].review_required = true;
+                    items[i].dedup_confidence = Some(score);
+                    items[j].dedup_confidence = Some(score);
+                }
+            }
+        }
+
+        (items, clusters, review_items)
+    }
+}
+
+pub struct DedupHookEngine {
+    engine: DedupEngine,
+}
+
+impl DedupHookEngine {
+    pub fn new(engine: DedupEngine) -> Self {
+        Self { engine }
+    }
+}
+
+impl DedupHook for DedupHookEngine {
+    fn apply(&self, items: Vec<StagedOpportunity>) -> Result<Vec<StagedOpportunity>> {
+        let (items, _clusters, _review_items) = self.engine.apply(items);
+        Ok(items)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TagRulesFile {
+    #[allow(dead_code)]
+    version: u32,
+    #[serde(default)]
+    rules: Vec<TagRule>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TagRule {
+    tag: String,
+    contains_any: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RiskRulesFile {
+    #[allow(dead_code)]
+    version: u32,
+    #[serde(default)]
+    rules: Vec<RiskRule>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RiskRule {
+    risk_flag: String,
+    contains_any: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PayRulesFile {
+    #[allow(dead_code)]
+    version: u32,
+    #[serde(default)]
+    rules: Vec<PayRule>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PayRule {
+    pay_model_hint: String,
+    normalize_to: String,
+}
+
+pub struct YamlRuleEnrichmentHook {
+    tag_rules: Vec<TagRule>,
+    risk_rules: Vec<RiskRule>,
+    pay_rules: Vec<PayRule>,
+}
+
+impl YamlRuleEnrichmentHook {
+    pub fn from_workspace_root(root: &PathBuf) -> Result<Self> {
+        let rules_dir = root.join("rules");
+        let tags: TagRulesFile = serde_yaml::from_str(
+            &std::fs::read_to_string(rules_dir.join("tags.yaml")).context("reading rules/tags.yaml")?,
+        )
+        .context("parsing rules/tags.yaml")?;
+        let risks: RiskRulesFile = serde_yaml::from_str(
+            &std::fs::read_to_string(rules_dir.join("risk.yaml")).context("reading rules/risk.yaml")?,
+        )
+        .context("parsing rules/risk.yaml")?;
+        let pay: PayRulesFile = serde_yaml::from_str(
+            &std::fs::read_to_string(rules_dir.join("pay.yaml")).context("reading rules/pay.yaml")?,
+        )
+        .context("parsing rules/pay.yaml")?;
+        Ok(Self {
+            tag_rules: tags.rules,
+            risk_rules: risks.rules,
+            pay_rules: pay.rules,
+        })
+    }
+}
+
+impl EnrichmentHook for YamlRuleEnrichmentHook {
+    fn apply(&self, mut items: Vec<StagedOpportunity>) -> Result<Vec<StagedOpportunity>> {
+        for item in &mut items {
+            let title = item
+                .draft
+                .title
+                .value
+                .as_deref()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let description = item
+                .draft
+                .description
+                .value
+                .as_deref()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let combined = format!("{title} {description}");
+
+            for rule in &self.tag_rules {
+                if rule
+                    .contains_any
+                    .iter()
+                    .any(|needle| combined.contains(&needle.to_ascii_lowercase()))
+                    && !item.tags.contains(&rule.tag)
+                {
+                    item.tags.push(rule.tag.clone());
+                }
+            }
+
+            for rule in &self.risk_rules {
+                if rule
+                    .contains_any
+                    .iter()
+                    .any(|needle| combined.contains(&needle.to_ascii_lowercase()))
+                    && !item.risk_flags.contains(&rule.risk_flag)
+                {
+                    item.risk_flags.push(rule.risk_flag.clone());
+                }
+            }
+
+            if let Some(pay_model) = item.draft.pay_model.value.clone() {
+                for rule in &self.pay_rules {
+                    if pay_model.eq_ignore_ascii_case(&rule.pay_model_hint) {
+                        item.draft.pay_model.value = Some(rule.normalize_to.clone());
+                    }
+                }
+            }
+        }
         Ok(items)
     }
 }
@@ -196,6 +444,10 @@ impl SyncPipeline {
                     source_id: source.source_id.clone(),
                     canonical_key,
                     version_no: 1,
+                    dedup_confidence: None,
+                    review_required: false,
+                    tags: Vec::new(),
+                    risk_flags: Vec::new(),
                     draft,
                 });
             }
@@ -360,7 +612,10 @@ impl SyncPipeline {
 }
 
 pub async fn run_sync_once_from_env() -> Result<SyncRunSummary> {
-    let pipeline = SyncPipeline::new(SyncConfig::from_env())?;
+    let config = SyncConfig::from_env();
+    let enrichment = YamlRuleEnrichmentHook::from_workspace_root(&config.workspace_root)?;
+    let dedup = DedupHookEngine::new(DedupEngine::new(DedupConfig::default()));
+    let pipeline = SyncPipeline::new(config)?.with_hooks(Box::new(dedup), Box::new(enrichment));
     pipeline.run_once().await
 }
 
@@ -375,4 +630,90 @@ fn normalize_canonical_key(draft: &OpportunityDraft) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect::<String>();
     format!("{}:{}", draft.source_id, title.trim_matches('-'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use rhof_core::Field;
+
+    fn mk_item(source_id: &str, title: &str) -> StagedOpportunity {
+        StagedOpportunity {
+            source_id: source_id.to_string(),
+            canonical_key: format!("{}:{}", source_id, DedupEngine::normalize_key_fragment(title)),
+            version_no: 1,
+            dedup_confidence: None,
+            review_required: false,
+            tags: vec![],
+            risk_flags: vec![],
+            draft: OpportunityDraft {
+                source_id: source_id.to_string(),
+                listing_url: None,
+                detail_url: None,
+                fetched_at: Utc
+                    .with_ymd_and_hms(2026, 2, 24, 12, 0, 0)
+                    .single()
+                    .unwrap(),
+                extractor_version: "test".into(),
+                title: Field { value: Some(title.to_string()), evidence: None },
+                description: Field { value: Some(title.to_string()), evidence: None },
+                pay_model: Field::empty(),
+                pay_rate_min: Field::empty(),
+                pay_rate_max: Field::empty(),
+                currency: Field::empty(),
+                min_hours_per_week: Field::empty(),
+                verification_requirements: Field::empty(),
+                geo_constraints: Field::empty(),
+                one_off_vs_ongoing: Field::empty(),
+                payment_methods: Field::empty(),
+                apply_url: Field::empty(),
+                requirements: Field::empty(),
+            },
+        }
+    }
+
+    #[test]
+    fn true_match_clusters() {
+        let engine = DedupEngine::new(DedupConfig {
+            auto_cluster_threshold: 0.93,
+            review_threshold: 0.85,
+        });
+        let items = vec![
+            mk_item("clickworker", "AI Data Contributor"),
+            mk_item("clickworker", "AI Data Contributer"),
+        ];
+        let (_items, clusters, review) = engine.apply(items);
+        assert_eq!(clusters.len(), 1);
+        assert!(review.is_empty());
+        assert!(clusters[0].confidence_score >= 0.93);
+    }
+
+    #[test]
+    fn false_positive_does_not_cluster() {
+        let engine = DedupEngine::new(DedupConfig::default());
+        let items = vec![
+            mk_item("appen-crowdgen", "Search Relevance Rater"),
+            mk_item("prolific", "Paid Academic Study"),
+        ];
+        let (_items, clusters, review) = engine.apply(items);
+        assert!(clusters.is_empty());
+        assert!(review.is_empty());
+    }
+
+    #[test]
+    fn borderline_cluster_goes_to_review_queue() {
+        let engine = DedupEngine::new(DedupConfig {
+            auto_cluster_threshold: 0.97,
+            review_threshold: 0.88,
+        });
+        let items = vec![
+            mk_item("telus-ai-community", "Internet Assessor - US"),
+            mk_item("telus-ai-community", "Internet Assessor US (Part-Time)"),
+        ];
+        let (_items, clusters, review) = engine.apply(items);
+        assert!(clusters.is_empty());
+        assert_eq!(review.len(), 1);
+        assert!(review[0].confidence_score >= 0.88);
+    }
 }

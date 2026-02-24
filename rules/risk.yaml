@@ -1,2 +1,9 @@
 version: 1
-rules: []
+rules:
+  - risk_flag: gated-source
+    contains_any:
+      - manual ingestion
+      - prolific account
+  - risk_flag: low-hours
+    contains_any:
+      - 2 hrs/week

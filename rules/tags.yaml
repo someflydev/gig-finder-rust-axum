@@ -1,2 +1,11 @@
 version: 1
-rules: []
+rules:
+  - tag: ai-data
+    contains_any:
+      - ai
+      - assessor
+      - relevance
+  - tag: research
+    contains_any:
+      - study
+      - research
