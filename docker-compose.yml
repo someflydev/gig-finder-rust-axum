@@ -4,7 +4,7 @@ services:
     container_name: rhof-postgres
     restart: unless-stopped
     ports:
-      - "5400:5432"
+      - "5401:5432"
     environment:
       POSTGRES_USER: rhof
       POSTGRES_PASSWORD: rhof

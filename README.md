@@ -12,7 +12,7 @@ Rust/Axum implementation of the RHOF system for discovering and tracking remote 
 
 ## Quickstart (planned flow)
 
-1. Start Postgres on host port `5400`: `just db-up`
+1. Start Postgres on host port `5401`: `just db-up`
 2. Copy `.env.example` to `.env` and adjust if needed
 3. Run migrations: `just migrate`
 4. Start web app: `just serve`

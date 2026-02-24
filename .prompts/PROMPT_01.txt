@@ -53,7 +53,7 @@ All later prompts that read `sources.yaml` must use this schema consistently (in
 
 DOCKER
 - Postgres container
-- Host port: 5400
+- Host port: 5401
 - Persistent volume
 - Credentials:
     user=rhof
@@ -62,7 +62,7 @@ DOCKER
 
 .env.example must contain:
 
-DATABASE_URL=postgres://rhof:rhof@localhost:5400/rhof
+DATABASE_URL=postgres://rhof:rhof@localhost:5401/rhof
 ARTIFACTS_DIR=./artifacts
 RHOF_WEB_PORT=8000
 RHOF_SCHEDULER_ENABLED=false

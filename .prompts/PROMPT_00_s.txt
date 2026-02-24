@@ -42,7 +42,7 @@ Runtime:
 Database:
 - Postgres (canonical store)
 - sqlx (migrations + query macros)
-- Host port: 5400 (never default 5432)
+- Host port: 5401 (never default 5432)
 
 Snapshots:
 - Parquet (arrow + parquet crates)
@@ -77,7 +77,7 @@ Time:
 PORT POLICY
 ================================================================================
 
-- Postgres container: 5432 (internal) → 5400 (host)
+- Postgres container: 5432 (internal) → 5401 (host)
 - Web server: default 8000 (configurable via RHOF_WEB_PORT)
 - No service may bind to default system ports
 - All ports configurable via environment variables
