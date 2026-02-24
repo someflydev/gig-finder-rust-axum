@@ -1,11 +1,16 @@
 //! Sync pipeline orchestration (PROMPT_05 staged implementation).
 
 use std::collections::BTreeMap;
+use std::fs::File;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use arrow_array::{BooleanArray, Float64Array, RecordBatch, StringArray, UInt32Array};
+use arrow_schema::{DataType, Field as ArrowField, Schema};
 use chrono::{DateTime, Utc};
+use parquet::arrow::ArrowWriter;
 use rhof_adapters::{adapter_for_source, load_fixture_bundle, load_manual_fixture_bundle, Crawlability, FixtureBundle};
 use rhof_core::OpportunityDraft;
 use rhof_storage::{ArtifactStore, HttpClientConfig, HttpFetcher};
@@ -15,6 +20,7 @@ use tokio::fs;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::warn;
 use uuid::Uuid;
+use sha2::{Digest, Sha256};
 
 pub const CRATE_NAME: &str = "rhof-sync";
 
@@ -106,6 +112,21 @@ pub struct SyncRunSummary {
     pub parsed_drafts: usize,
     pub persisted_versions: usize,
     pub reports_dir: String,
+    pub parquet_manifest: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ParquetManifest {
+    pub schema_version: u32,
+    pub files: Vec<ParquetManifestFile>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ParquetManifestFile {
+    pub name: String,
+    pub path: String,
+    pub sha256: String,
+    pub bytes: u64,
 }
 
 pub trait DedupHook: Send + Sync {
@@ -461,6 +482,9 @@ impl SyncPipeline {
 
         let finished_at = Utc::now();
         let reports_dir = self.write_reports(run_id, started_at, finished_at, &enabled_sources, &staged).await?;
+        let manifest_path = self
+            .export_parquet_snapshots(&reports_dir, run_id, &enabled_sources, &staged)
+            .await?;
 
         Ok(SyncRunSummary {
             run_id,
@@ -471,6 +495,7 @@ impl SyncPipeline {
             parsed_drafts,
             persisted_versions,
             reports_dir: reports_dir.display().to_string(),
+            parquet_manifest: manifest_path.display().to_string(),
         })
     }
 
@@ -609,6 +634,48 @@ impl SyncPipeline {
 
         Ok(reports_dir)
     }
+
+    async fn export_parquet_snapshots(
+        &self,
+        reports_dir: &PathBuf,
+        run_id: Uuid,
+        enabled_sources: &[SourceConfig],
+        staged: &[StagedOpportunity],
+    ) -> Result<PathBuf> {
+        let snapshot_dir = reports_dir.join("snapshots");
+        fs::create_dir_all(&snapshot_dir)
+            .await
+            .with_context(|| format!("creating {}", snapshot_dir.display()))?;
+
+        let opportunities_path = snapshot_dir.join("opportunities.parquet");
+        let versions_path = snapshot_dir.join("opportunity_versions.parquet");
+        let tags_path = snapshot_dir.join("tags.parquet");
+        let sources_path = snapshot_dir.join("sources.parquet");
+
+        write_opportunities_parquet(&opportunities_path, staged)?;
+        write_opportunity_versions_parquet(&versions_path, staged)?;
+        write_tags_parquet(&tags_path, staged)?;
+        write_sources_parquet(&sources_path, enabled_sources)?;
+
+        let manifest = ParquetManifest {
+            schema_version: 1,
+            files: vec![
+                manifest_entry("opportunities", reports_dir, &opportunities_path)?,
+                manifest_entry("opportunity_versions", reports_dir, &versions_path)?,
+                manifest_entry("tags", reports_dir, &tags_path)?,
+                manifest_entry("sources", reports_dir, &sources_path)?,
+            ],
+        };
+
+        let manifest_path = snapshot_dir.join("manifest.json");
+        let bytes = serde_json::to_vec_pretty(&manifest).context("serializing parquet manifest")?;
+        fs::write(&manifest_path, bytes)
+            .await
+            .with_context(|| format!("writing {}", manifest_path.display()))?;
+
+        let _ = run_id;
+        Ok(manifest_path)
+    }
 }
 
 pub async fn run_sync_once_from_env() -> Result<SyncRunSummary> {
@@ -617,6 +684,61 @@ pub async fn run_sync_once_from_env() -> Result<SyncRunSummary> {
     let dedup = DedupHookEngine::new(DedupEngine::new(DedupConfig::default()));
     let pipeline = SyncPipeline::new(config)?.with_hooks(Box::new(dedup), Box::new(enrichment));
     pipeline.run_once().await
+}
+
+pub fn report_daily_markdown(runs: usize, workspace_root: Option<PathBuf>) -> Result<String> {
+    let root = workspace_root.unwrap_or_else(|| PathBuf::from("."));
+    let reports_root = root.join("reports");
+    let mut dirs = std::fs::read_dir(&reports_root)
+        .with_context(|| format!("reading {}", reports_root.display()))?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+        .collect::<Vec<_>>();
+    dirs.sort_by_key(|e| {
+        e.metadata()
+            .and_then(|m| m.modified())
+            .ok()
+    });
+    dirs.reverse();
+    let dirs = dirs.into_iter().take(runs.max(1)).collect::<Vec<_>>();
+
+    let mut lines = vec!["# RHOF Report Daily".to_string(), String::new()];
+    for dir in dirs {
+        let run_id = dir.file_name().to_string_lossy().to_string();
+        let delta_path = dir.path().join("opportunities_delta.json");
+        let daily_path = dir.path().join("daily_brief.md");
+        let manifest_path = dir.path().join("snapshots").join("manifest.json");
+
+        let delta_value: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(&delta_path)
+                .with_context(|| format!("reading {}", delta_path.display()))?,
+        )
+        .with_context(|| format!("parsing {}", delta_path.display()))?;
+        let count = delta_value
+            .get("opportunities")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let sources = delta_value
+            .get("fetch_run")
+            .and_then(|v| v.get("database_url"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown-db");
+
+        lines.push(format!("## Run `{run_id}`"));
+        lines.push(format!("- opportunities: {count}"));
+        lines.push(format!("- delta: `{}`", delta_path.display()));
+        if manifest_path.exists() {
+            lines.push(format!("- parquet manifest: `{}`", manifest_path.display()));
+        }
+        if daily_path.exists() {
+            lines.push(format!("- daily brief: `{}`", daily_path.display()));
+        }
+        lines.push(format!("- persistence target: `{sources}`"));
+        lines.push(String::new());
+    }
+
+    Ok(lines.join("\n"))
 }
 
 fn normalize_canonical_key(draft: &OpportunityDraft) -> String {
@@ -630,6 +752,205 @@ fn normalize_canonical_key(draft: &OpportunityDraft) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect::<String>();
     format!("{}:{}", draft.source_id, title.trim_matches('-'))
+}
+
+fn write_parquet(path: &PathBuf, batch: RecordBatch) -> Result<()> {
+    let file = File::create(path).with_context(|| format!("creating {}", path.display()))?;
+    let mut writer = ArrowWriter::try_new(file, batch.schema(), None)
+        .with_context(|| format!("opening parquet writer {}", path.display()))?;
+    writer
+        .write(&batch)
+        .with_context(|| format!("writing record batch {}", path.display()))?;
+    writer
+        .close()
+        .with_context(|| format!("closing parquet writer {}", path.display()))?;
+    Ok(())
+}
+
+fn write_opportunities_parquet(path: &PathBuf, staged: &[StagedOpportunity]) -> Result<()> {
+    let schema = Arc::new(Schema::new(vec![
+        ArrowField::new("source_id", DataType::Utf8, false),
+        ArrowField::new("canonical_key", DataType::Utf8, false),
+        ArrowField::new("title", DataType::Utf8, true),
+        ArrowField::new("apply_url", DataType::Utf8, true),
+        ArrowField::new("review_required", DataType::Boolean, false),
+        ArrowField::new("dedup_confidence", DataType::Float64, true),
+    ]));
+
+    let source_ids = StringArray::from(
+        staged
+            .iter()
+            .map(|s| Some(s.source_id.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let canonical_keys = StringArray::from(
+        staged
+            .iter()
+            .map(|s| Some(s.canonical_key.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let titles = StringArray::from(
+        staged
+            .iter()
+            .map(|s| s.draft.title.value.as_deref())
+            .collect::<Vec<_>>(),
+    );
+    let apply_urls = StringArray::from(
+        staged
+            .iter()
+            .map(|s| s.draft.apply_url.value.as_deref())
+            .collect::<Vec<_>>(),
+    );
+    let reviews = BooleanArray::from(staged.iter().map(|s| s.review_required).collect::<Vec<_>>());
+    let confidences = Float64Array::from(staged.iter().map(|s| s.dedup_confidence).collect::<Vec<_>>());
+
+    let batch = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(source_ids),
+            Arc::new(canonical_keys),
+            Arc::new(titles),
+            Arc::new(apply_urls),
+            Arc::new(reviews),
+            Arc::new(confidences),
+        ],
+    )
+    .context("building opportunities record batch")?;
+    write_parquet(path, batch)
+}
+
+fn write_opportunity_versions_parquet(path: &PathBuf, staged: &[StagedOpportunity]) -> Result<()> {
+    let schema = Arc::new(Schema::new(vec![
+        ArrowField::new("canonical_key", DataType::Utf8, false),
+        ArrowField::new("version_no", DataType::UInt32, false),
+        ArrowField::new("extractor_version", DataType::Utf8, false),
+        ArrowField::new("fetched_at", DataType::Utf8, false),
+    ]));
+
+    let canonical_keys = StringArray::from(
+        staged
+            .iter()
+            .map(|s| Some(s.canonical_key.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let version_nos = UInt32Array::from(staged.iter().map(|s| s.version_no).collect::<Vec<_>>());
+    let extractor_versions = StringArray::from(
+        staged
+            .iter()
+            .map(|s| Some(s.draft.extractor_version.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let fetched_at = StringArray::from(
+        staged
+            .iter()
+            .map(|s| Some(s.draft.fetched_at.to_rfc3339()))
+            .collect::<Vec<_>>(),
+    );
+
+    let batch = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(canonical_keys),
+            Arc::new(version_nos),
+            Arc::new(extractor_versions),
+            Arc::new(fetched_at),
+        ],
+    )
+    .context("building opportunity_versions record batch")?;
+    write_parquet(path, batch)
+}
+
+fn write_tags_parquet(path: &PathBuf, staged: &[StagedOpportunity]) -> Result<()> {
+    let rows = staged
+        .iter()
+        .flat_map(|s| {
+            s.tags
+                .iter()
+                .map(|tag| (s.canonical_key.clone(), tag.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    let schema = Arc::new(Schema::new(vec![
+        ArrowField::new("canonical_key", DataType::Utf8, false),
+        ArrowField::new("tag", DataType::Utf8, false),
+    ]));
+    let canonical_keys = StringArray::from(
+        rows.iter()
+            .map(|(k, _)| Some(k.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let tags = StringArray::from(rows.iter().map(|(_, t)| Some(t.as_str())).collect::<Vec<_>>());
+    let batch = RecordBatch::try_new(schema, vec![Arc::new(canonical_keys), Arc::new(tags)])
+        .context("building tags record batch")?;
+    write_parquet(path, batch)
+}
+
+fn write_sources_parquet(path: &PathBuf, sources: &[SourceConfig]) -> Result<()> {
+    let schema = Arc::new(Schema::new(vec![
+        ArrowField::new("source_id", DataType::Utf8, false),
+        ArrowField::new("display_name", DataType::Utf8, false),
+        ArrowField::new("crawlability", DataType::Utf8, false),
+        ArrowField::new("enabled", DataType::Boolean, false),
+        ArrowField::new("mode", DataType::Utf8, false),
+    ]));
+
+    let source_ids = StringArray::from(
+        sources
+            .iter()
+            .map(|s| Some(s.source_id.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let display_names = StringArray::from(
+        sources
+            .iter()
+            .map(|s| Some(s.display_name.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let crawlability = StringArray::from(
+        sources
+            .iter()
+            .map(|s| Some(format!("{:?}", s.crawlability)))
+            .collect::<Vec<_>>(),
+    );
+    let enabled = BooleanArray::from(sources.iter().map(|s| s.enabled).collect::<Vec<_>>());
+    let modes = StringArray::from(
+        sources
+            .iter()
+            .map(|s| Some(s.mode.as_str()))
+            .collect::<Vec<_>>(),
+    );
+
+    let batch = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(source_ids),
+            Arc::new(display_names),
+            Arc::new(crawlability),
+            Arc::new(enabled),
+            Arc::new(modes),
+        ],
+    )
+    .context("building sources record batch")?;
+    write_parquet(path, batch)
+}
+
+fn manifest_entry(name: &str, reports_dir: &PathBuf, path: &PathBuf) -> Result<ParquetManifestFile> {
+    let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    let sha256 = hex::encode(hasher.finalize());
+    let rel = path
+        .strip_prefix(reports_dir)
+        .unwrap_or(path)
+        .display()
+        .to_string();
+    Ok(ParquetManifestFile {
+        name: name.to_string(),
+        path: rel,
+        sha256,
+        bytes: bytes.len() as u64,
+    })
 }
 
 #[cfg(test)]

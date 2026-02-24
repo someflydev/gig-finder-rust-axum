@@ -12,8 +12,20 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     Sync,
+    Report {
+        #[command(subcommand)]
+        command: ReportCommands,
+    },
     Migrate,
     Serve,
+}
+
+#[derive(Debug, Subcommand)]
+enum ReportCommands {
+    Daily {
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+    },
 }
 
 #[tokio::main]
@@ -27,7 +39,14 @@ async fn main() -> Result<()> {
                 "sync complete: run_id={} sources={} drafts={} reports={}",
                 summary.run_id, summary.enabled_sources, summary.parsed_drafts, summary.reports_dir
             );
+            println!("parquet manifest: {}", summary.parquet_manifest);
         }
+        Commands::Report { command } => match command {
+            ReportCommands::Daily { runs } => {
+                let markdown = rhof_sync::report_daily_markdown(runs, None)?;
+                println!("{markdown}");
+            }
+        },
         Commands::Migrate => {
             eprintln!("migrate command scaffolded; sqlx wiring lands in later prompts");
         }
