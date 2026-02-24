@@ -23,7 +23,7 @@ use sqlx::{migrate::Migrator, PgPool, Row};
 use strsim::jaro_winkler;
 use tokio::fs;
 use tokio_cron_scheduler::{Job, JobScheduler};
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 use sha2::{Digest, Sha256};
 
@@ -529,9 +529,23 @@ impl SyncPipeline {
 
         let sched = JobScheduler::new().await.context("creating scheduler")?;
         for cron in [&self.config.sync_cron_1, &self.config.sync_cron_2] {
-            let job = Job::new_async(cron, |_uuid, _l| {
+            let cfg = self.config.clone();
+            let job = Job::new_async(cron, move |_uuid, _l| {
+                let cfg = cfg.clone();
                 Box::pin(async move {
-                    warn!("scheduler job triggered; prompt05 scaffold does not auto-run sync yet");
+                    match run_sync_once_with_config(cfg).await {
+                        Ok(summary) => {
+                            info!(
+                                run_id = %summary.run_id,
+                                sources = summary.enabled_sources,
+                                drafts = summary.parsed_drafts,
+                                "scheduler sync completed"
+                            );
+                        }
+                        Err(err) => {
+                            warn!(error = %err, "scheduler sync failed");
+                        }
+                    }
                 })
             })
             .with_context(|| format!("creating scheduler job for cron {cron}"))?;
@@ -1090,6 +1104,13 @@ impl SyncPipeline {
     }
 }
 
+pub async fn run_sync_once_with_config(config: SyncConfig) -> Result<SyncRunSummary> {
+    let enrichment = YamlRuleEnrichmentHook::from_workspace_root(&config.workspace_root)?;
+    let dedup = DedupHookEngine::new(DedupEngine::new(DedupConfig::default()));
+    let pipeline = SyncPipeline::new(config)?.with_hooks(Box::new(dedup), Box::new(enrichment));
+    pipeline.run_once().await
+}
+
 fn draft_raw_artifact_id(draft: &OpportunityDraft) -> Option<Uuid> {
     [
         &draft.title.evidence,
@@ -1113,12 +1134,24 @@ pub async fn apply_migrations_from_env() -> Result<()> {
     Ok(())
 }
 
-pub async fn run_sync_once_from_env() -> Result<SyncRunSummary> {
+pub async fn run_scheduler_forever_from_env() -> Result<()> {
     let config = SyncConfig::from_env();
     let enrichment = YamlRuleEnrichmentHook::from_workspace_root(&config.workspace_root)?;
     let dedup = DedupHookEngine::new(DedupEngine::new(DedupConfig::default()));
-    let pipeline = SyncPipeline::new(config)?.with_hooks(Box::new(dedup), Box::new(enrichment));
-    pipeline.run_once().await
+    let pipeline = SyncPipeline::new(config.clone())?.with_hooks(Box::new(dedup), Box::new(enrichment));
+    let Some(mut sched) = pipeline.maybe_build_scheduler().await? else {
+        anyhow::bail!("RHOF_SCHEDULER_ENABLED=false; enable it to run scheduler mode");
+    };
+    info!("scheduler started; waiting for cron triggers (Ctrl+C to stop)");
+    sched.start().await.context("starting scheduler")?;
+    tokio::signal::ctrl_c().await.context("waiting for Ctrl+C")?;
+    info!("scheduler shutdown requested");
+    sched.shutdown().await.context("shutting down scheduler")?;
+    Ok(())
+}
+
+pub async fn run_sync_once_from_env() -> Result<SyncRunSummary> {
+    run_sync_once_with_config(SyncConfig::from_env()).await
 }
 
 pub async fn seed_from_fixtures_from_env() -> Result<SyncRunSummary> {

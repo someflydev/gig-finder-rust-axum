@@ -77,6 +77,27 @@ def check_fixture_bundle(source_id: str):
         errors.append(f"missing crawlability in {bundle}")
     if "raw_artifact" not in payload:
         errors.append(f"missing raw_artifact block in {bundle}")
+    parsed_records = payload.get("parsed_records")
+    if not isinstance(parsed_records, list):
+        errors.append(f"parsed_records must be a list in {bundle}")
+    elif len(parsed_records) == 0:
+        errors.append(f"parsed_records must contain at least one record in {bundle}")
+    coverage = payload.get("evidence_coverage_percent")
+    if not isinstance(coverage, (int, float)):
+        errors.append(f"missing or invalid evidence_coverage_percent in {bundle}")
+    elif coverage < 90:
+        errors.append(f"evidence_coverage_percent < 90 in {bundle} (got {coverage})")
+
+    if snapshot.exists():
+        try:
+            snap_payload = json.loads(snapshot.read_text())
+        except Exception as exc:
+            errors.append(f"invalid JSON in {snapshot}: {exc}")
+        else:
+            if not isinstance(snap_payload, list):
+                errors.append(f"snapshot must be a JSON array in {snapshot}")
+            elif len(snap_payload) == 0:
+                errors.append(f"snapshot must contain at least one parsed record in {snapshot}")
     return errors
 
 

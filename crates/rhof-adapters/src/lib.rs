@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rhof_core::{EvidenceRef, Field, OpportunityDraft};
 use rhof_storage::HttpFetcher;
+use scraper::{Html, Selector};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -138,7 +139,10 @@ impl<T> Default for FixtureField<T> {
 }
 
 pub fn load_fixture_bundle(path: impl AsRef<Path>) -> Result<FixtureBundle> {
-    read_json_file(path)
+    let path = path.as_ref();
+    let mut bundle: FixtureBundle = read_json_file(path)?;
+    hydrate_inline_raw_artifact(path, &mut bundle)?;
+    Ok(bundle)
 }
 
 pub fn load_manual_fixture_bundle(path: impl AsRef<Path>) -> Result<FixtureBundle> {
@@ -149,6 +153,26 @@ fn read_json_file<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T> {
     let path = path.as_ref();
     let data = fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     serde_json::from_str(&data).with_context(|| format!("parsing {}", path.display()))
+}
+
+fn hydrate_inline_raw_artifact(bundle_path: &Path, bundle: &mut FixtureBundle) -> Result<()> {
+    if bundle.raw_artifact.inline_text.is_some() {
+        return Ok(());
+    }
+    let Some(rel_path) = &bundle.raw_artifact.path else {
+        return Ok(());
+    };
+    let raw_path = bundle_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(rel_path);
+    if !raw_path.exists() {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(&raw_path)
+        .with_context(|| format!("reading fixture raw artifact {}", raw_path.display()))?;
+    bundle.raw_artifact.inline_text = Some(raw);
+    Ok(())
 }
 
 pub fn deterministic_raw_artifact_id_for_bundle(bundle: &FixtureBundle) -> Uuid {
@@ -221,6 +245,111 @@ struct FixtureFirstAdapter {
     crawlability: Crawlability,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct AppenCrowdgenAdapter;
+
+impl AppenCrowdgenAdapter {
+    fn parse_from_raw_html(&self, bundle: &FixtureBundle) -> Result<Option<Vec<OpportunityDraft>>, AdapterError> {
+        let Some(html_text) = bundle.raw_artifact.inline_text.as_deref() else {
+            return Ok(None);
+        };
+        let document = Html::parse_document(html_text);
+        let h1_sel = Selector::parse("h1").map_err(|e| AdapterError::Message(e.to_string()))?;
+        let link_sel = Selector::parse("a[href]").map_err(|e| AdapterError::Message(e.to_string()))?;
+
+        let title_text = document
+            .select(&h1_sel)
+            .next()
+            .map(|n| n.text().collect::<String>().trim().to_string())
+            .filter(|s| !s.is_empty());
+        let apply_url = document
+            .select(&link_sel)
+            .next()
+            .and_then(|n| n.value().attr("href"))
+            .map(|s| s.to_string());
+
+        if title_text.is_none() && apply_url.is_none() {
+            return Ok(None);
+        }
+
+        let mut drafts = bundle_to_drafts(bundle);
+        let Some(first) = drafts.get_mut(0) else {
+            return Ok(None);
+        };
+
+        if let Some(title) = title_text {
+            first.title = fixture_field_to_core(
+                &FixtureField {
+                    value: Some(title.clone()),
+                    selector_or_pointer: "h1".to_string(),
+                    snippet: title,
+                },
+                bundle,
+            );
+        }
+
+        if let Some(url) = apply_url {
+            first.apply_url = fixture_field_to_core(
+                &FixtureField {
+                    value: Some(url.clone()),
+                    selector_or_pointer: "a[href]".to_string(),
+                    snippet: url,
+                },
+                bundle,
+            );
+        }
+
+        Ok(Some(drafts))
+    }
+}
+
+#[async_trait]
+impl SourceAdapter for AppenCrowdgenAdapter {
+    fn source_id(&self) -> &'static str {
+        "appen-crowdgen"
+    }
+
+    fn crawlability(&self) -> Crawlability {
+        Crawlability::PublicHtml
+    }
+
+    async fn fetch_listing(
+        &self,
+        _http: &HttpFetcher,
+        _ctx: &AdapterContext,
+        _targets: &[ListingTarget],
+    ) -> Result<Vec<FetchedPage>, AdapterError> {
+        Ok(Vec::new())
+    }
+
+    fn parse_listing(&self, bundle: &FixtureBundle) -> Result<Vec<OpportunityDraft>, AdapterError> {
+        if bundle.source_id != self.source_id() {
+            return Err(AdapterError::Message(format!(
+                "bundle source_id={} does not match adapter source_id={}",
+                bundle.source_id,
+                self.source_id()
+            )));
+        }
+        if let Some(drafts) = self.parse_from_raw_html(bundle)? {
+            return Ok(drafts);
+        }
+        Ok(bundle_to_drafts(bundle))
+    }
+
+    async fn fetch_detail(
+        &self,
+        _http: &HttpFetcher,
+        _ctx: &AdapterContext,
+        _targets: &[DetailTarget],
+    ) -> Result<Vec<FetchedPage>, AdapterError> {
+        Ok(Vec::new())
+    }
+
+    fn parse_detail(&self, bundle: &FixtureBundle) -> Result<Vec<OpportunityDraft>, AdapterError> {
+        self.parse_listing(bundle)
+    }
+}
+
 #[async_trait]
 impl SourceAdapter for FixtureFirstAdapter {
     fn source_id(&self) -> &'static str {
@@ -265,10 +394,7 @@ impl SourceAdapter for FixtureFirstAdapter {
 }
 
 pub fn appen_crowdgen_adapter() -> impl SourceAdapter {
-    FixtureFirstAdapter {
-        source_id: "appen-crowdgen",
-        crawlability: Crawlability::PublicHtml,
-    }
+    AppenCrowdgenAdapter
 }
 
 pub fn clickworker_adapter() -> impl SourceAdapter {
@@ -301,10 +427,7 @@ pub fn prolific_manual_adapter() -> impl SourceAdapter {
 
 pub fn adapter_for_source(source_id: &str) -> Option<Box<dyn SourceAdapter>> {
     match source_id {
-        "appen-crowdgen" => Some(Box::new(FixtureFirstAdapter {
-            source_id: "appen-crowdgen",
-            crawlability: Crawlability::PublicHtml,
-        })),
+        "appen-crowdgen" => Some(Box::new(AppenCrowdgenAdapter)),
         "clickworker" => Some(Box::new(FixtureFirstAdapter {
             source_id: "clickworker",
             crawlability: Crawlability::PublicHtml,

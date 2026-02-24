@@ -7,7 +7,7 @@ After each run:
 - Write manifest.json with schema_version + file hashes.
 
 Implement CLI:
-rhof report daily --runs N
+rhof-cli report daily --runs N
 
 This prompt introduces the `report` subcommand in the shared CLI; PROMPT_09 extends the same CLI with additional commands.
 

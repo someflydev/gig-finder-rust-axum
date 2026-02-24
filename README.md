@@ -29,5 +29,11 @@ Useful commands:
 
 - `cargo run -p rhof-cli -- seed` (fixture-derived seed/import path)
 - `cargo run -p rhof-cli -- debug` (env + recent report summary)
+- `cargo run -p rhof-cli -- scheduler` (runs cron scheduler when `RHOF_SCHEDULER_ENABLED=true`)
 - `just tailwind-install` (installs standalone Tailwind binary to `./bin/tailwindcss`)
 - `cargo test --workspace`
+
+## Contributor Notes
+
+- `just sqlx-prepare` assumes `cargo-sqlx` is installed locally (for example: `cargo install sqlx-cli --no-default-features --features rustls,postgres`).
+- RHOF currently uses runtime `sqlx::query(...)` calls plus embedded migrations; query-macro adoption can be added later if compile-time checked SQL is desired.

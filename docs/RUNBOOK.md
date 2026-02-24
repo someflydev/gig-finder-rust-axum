@@ -7,6 +7,7 @@
 1. Start Postgres: `just db-up` (host port `5401`)
 2. Run migrations: `just migrate`
 3. Stop Postgres: `just db-down`
+4. Optional contributor SQL metadata prep: install `cargo-sqlx`, then run `just sqlx-prepare`
 
 ### Sync / Reports
 
@@ -17,6 +18,12 @@
    - `reports/<run_id>/snapshots/*.parquet`
    - `reports/<run_id>/snapshots/manifest.json`
 3. Summarize recent runs: `cargo run -p rhof-cli -- report daily --runs 3`
+
+### Scheduler
+
+1. Set `RHOF_SCHEDULER_ENABLED=true` in `.env` (or your shell)
+2. Start scheduler mode: `cargo run -p rhof-cli -- scheduler`
+3. Stop with `Ctrl+C`
 
 ### Seed (Fixture-Derived)
 

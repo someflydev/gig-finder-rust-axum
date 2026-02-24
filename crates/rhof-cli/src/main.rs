@@ -22,6 +22,7 @@ enum Commands {
     Seed,
     Debug,
     Migrate,
+    Scheduler,
     Serve,
 }
 
@@ -74,6 +75,9 @@ async fn main() -> Result<()> {
         Commands::Migrate => {
             rhof_sync::apply_migrations_from_env().await?;
             println!("migrations applied");
+        }
+        Commands::Scheduler => {
+            rhof_sync::run_scheduler_forever_from_env().await?;
         }
         Commands::Serve => {
             rhof_web::serve_from_env().await?;

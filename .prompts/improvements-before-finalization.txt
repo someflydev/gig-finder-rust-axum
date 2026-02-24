@@ -41,3 +41,28 @@ If you applied any fixes during this run, list them with file paths + brief diff
 - `assets/tailwind/tailwind.config.js` :: fixed template content glob path :: aligns Tailwind scan paths with actual template location
 - `POST_FLIGHT_REPORT.md`, `FRONT_FACING_IDEAS.md` :: refreshed after fix round with updated scoring/findings/directions :: re-ran post-flight audit loop
 ---
+---
+Timestamp: 2026-02-23T22:03:00-0600
+Summary: Applied the remaining P2/P3 audit fixes that were safe to automate: scheduler command/runtime path, one real raw fixture parser path (Appen), stronger adapter contract checks, CLI naming alignment in prompts, architecture/data-model docs fill-in, source-doc cleanup for sample scaffold, sqlx-prepare contributor docs, and committed baseline UI CSS polish.
+Top 10 issues found:
+- P2: Only one adapter currently demonstrates raw fixture parsing; most adapters still replay `parsed_records`.
+- P2: Dedup cluster tables are not yet populated even though review items are persisted.
+- P2: `/review/:id/resolve` is still UI-only and does not update `review_items` in Postgres.
+- P2: Scheduler mode is runnable but lacks operational hardening (metrics/run locks/retry policy).
+- P3: `sample-source` generated fixtures/tests still live in the main tree and may be confused with supported adapters.
+- P3: Formal schemas/docs for report JSON and Parquet outputs are still missing.
+- P3: Packaging/release hygiene (root `LICENSE`, changelog, release checklist) is still missing.
+- P3: No one-command demo script yet (db-up + migrate + sync + serve).
+- P3: Frontend remains functionally polished but still not design-system-level or screenshot-optimized.
+- P3: CI still lacks an explicit DB integration test for migrate+sync idempotency.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `crates/rhof-cli/src/main.rs`, `crates/rhof-sync/src/lib.rs` :: + `scheduler` command and runnable scheduler mode using cron jobs :: fixes non-operational scheduler path
+- `crates/rhof-adapters/src/lib.rs`, `crates/rhof-adapters/Cargo.toml` :: + raw fixture hydration + Appen HTML parsing with `scraper` + runtime registration :: demonstrates real parser path beyond fixture replay
+- `scripts/check_adapters.py` :: enforce non-empty `parsed_records`/snapshot and `evidence_coverage_percent >= 90` for enabled sources :: strengthens adapter contract checks
+- `README.md`, `docs/RUNBOOK.md` :: documented scheduler mode and `sqlx-prepare` prerequisites/workflow :: resolves contributor tooling ambiguity
+- `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md` :: replaced placeholders with as-built architecture/data model docs :: improves traceability/onboarding
+- `docs/SOURCES.md` :: relabeled `sample-source` as generator example (not enabled source) :: reduces support-surface confusion
+- `.prompts/PROMPT_07.txt` :: aligned CLI example naming to `rhof-cli` :: consistency fix
+- `assets/static/app.css` :: replaced placeholder CSS with committed baseline styling :: improves frontend polish before Tailwind build
+- `POST_FLIGHT_REPORT.md` :: refreshed post-flight audit with updated score/issues after P2/P3 fix round
+---
