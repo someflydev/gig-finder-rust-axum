@@ -1,0 +1,27 @@
+<div>
+  <table border="1" cellpadding="6">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Source</th>
+        <th>Pay</th>
+        <th>Review</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in opportunities %}
+      <tr>
+        <td><a href="/opportunities/{{ o.id }}">{{ o.title }}</a></td>
+        <td>{{ o.source_id }}</td>
+        <td>
+          {% match o.pay_model %}{% when Some with (pm) %}{{ pm }}{% when None %}unknown{% endmatch %}
+          {% match o.pay_rate_min %}{% when Some with (v) %} {{ v }}{% when None %}{% endmatch %}
+          {% match o.currency %}{% when Some with (c) %} {{ c }}{% when None %}{% endmatch %}
+        </td>
+        <td>{% if o.review_required %}yes{% else %}no{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>Page {{ page }} / {{ total_pages }}</p>
+</div>

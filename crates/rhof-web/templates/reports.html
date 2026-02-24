@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reports</title>
+  <link rel="stylesheet" href="/assets/static/app.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+  <h1>Reports</h1>
+  <p>Plotly JSON endpoint: <code>/reports/chart</code></p>
+  <ul>
+    {% for r in runs %}
+    <li>
+      <code>{{ r.run_id }}</code> - {{ r.opportunities }} opportunities
+      {% if r.has_parquet_manifest %}<span>[parquet]</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <pre id="chart-json" hx-get="/reports/chart" hx-trigger="load"></pre>
+</body>
+</html>

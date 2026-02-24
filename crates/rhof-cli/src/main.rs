@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
             eprintln!("migrate command scaffolded; sqlx wiring lands in later prompts");
         }
         Commands::Serve => {
-            eprintln!("serve command scaffolded; web wiring lands in later prompts");
+            rhof_web::serve_from_env().await?;
         }
     }
 

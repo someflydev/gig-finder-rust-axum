@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sources</title>
+  <link rel="stylesheet" href="/assets/static/app.css">
+</head>
+<body>
+  <h1>Sources</h1>
+  <ul>
+    {% for s in sources %}
+    <li>
+      <strong>{{ s.display_name }}</strong> ({{ s.source_id }})
+      {% if s.enabled %}<span>[enabled]</span>{% else %}<span>[disabled]</span>{% endif %}
+      <span>[{{ s.crawlability }}]</span>
+      {% if s.mode == "manual" || s.crawlability == "ManualOnly" || s.crawlability == "Gated" %}
+      <span title="manual or gated source badge">[manual/gated]</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

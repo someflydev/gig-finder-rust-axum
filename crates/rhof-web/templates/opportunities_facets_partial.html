@@ -1,0 +1,16 @@
+<div>
+  <h2>Source Facets</h2>
+  <ul>
+    <li>
+      <a hx-get="/opportunities/table" hx-target="#table">All</a>
+      {% if all_selected %}<strong>(selected)</strong>{% endif %}
+    </li>
+    {% for row in source_counts %}
+    <li>
+      <a hx-get="/opportunities/table?source={{ row.source_id }}" hx-target="#table">{{ row.source_id }}</a>
+      ({{ row.count }})
+      {% if row.selected %}<strong>(selected)</strong>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>

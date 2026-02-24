@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review Queue</title>
+  <link rel="stylesheet" href="/assets/static/app.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+  <h1>Review Queue</h1>
+  <ul>
+    {% for o in review_items %}
+    <li id="review-{{ o.id }}">
+      {{ o.title }} ({{ o.source_id }})
+      <button hx-post="/review/{{ o.id }}/resolve" hx-target="#review-{{ o.id }}" hx-swap="outerHTML">Resolve</button>
+    </li>
+    {% endfor %}
+    {% if review_items.len() == 0 %}<li>No review items.</li>{% endif %}
+  </ul>
+</body>
+</html>

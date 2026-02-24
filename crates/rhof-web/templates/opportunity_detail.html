@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opportunity Detail</title>
+  <link rel="stylesheet" href="/assets/static/app.css">
+</head>
+<body>
+  <a href="/opportunities">Back</a>
+  <h1>{{ opportunity.title }}</h1>
+  <p><strong>Source:</strong> {{ opportunity.source_id }}</p>
+  <p><strong>Review Required:</strong> {% if opportunity.review_required %}yes{% else %}no{% endif %}</p>
+  <p><strong>Dedup Confidence:</strong> {% match opportunity.dedup_confidence %}{% when Some with (v) %}{{ v }}{% when None %}n/a{% endmatch %}</p>
+  <p><strong>Tags:</strong> {{ tags_text }}</p>
+  <p><strong>Risk Flags:</strong> {{ risk_flags_text }}</p>
+  <p><strong>Apply URL:</strong> {% match opportunity.apply_url %}{% when Some with (url) %}<a href="{{ url }}">{{ url }}</a>{% when None %}n/a{% endmatch %}</p>
+</body>
+</html>
