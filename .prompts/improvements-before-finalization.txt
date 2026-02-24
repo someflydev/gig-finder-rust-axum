@@ -66,3 +66,22 @@ If you applied any fixes during this run, list them with file paths + brief diff
 - `assets/static/app.css` :: replaced placeholder CSS with committed baseline styling :: improves frontend polish before Tailwind build
 - `POST_FLIGHT_REPORT.md` :: refreshed post-flight audit with updated score/issues after P2/P3 fix round
 ---
+---
+Timestamp: 2026-02-23T21:57:34-0600
+Summary: Implemented the next highest-leverage item from the post-flight report: expanded real raw fixture parsing across the initial adapters (HTML title/apply parsing for Appen/Clickworker/OneForma/TELUS and JSON title/apply parsing for Prolific), while preserving fixture/snapshot determinism. Re-validated with `cargo test -p rhof-adapters`, `python3 scripts/check_adapters.py`, and `cargo test --workspace`.
+Top 10 issues found:
+- P2: Raw parser coverage is still shallow (mostly title/apply); broader canonical fields still depend on fixture `parsed_records`.
+- P2: Dedup cluster tables are not yet populated.
+- P2: `/review/:id/resolve` remains UI-only and not persisted to `review_items`.
+- P2: Scheduler mode exists but lacks hardening (locks/metrics/retry/health visibility).
+- P3: `sample-source` generated fixtures/tests remain in main tree.
+- P3: Formal report JSON schema docs are still missing.
+- P3: Formal Parquet schema docs are still missing.
+- P3: Root `LICENSE` file is still missing.
+- P3: Changelog/release checklist is still missing.
+- P3: CI still lacks DB integration coverage for migrate+sync idempotency.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `crates/rhof-adapters/src/lib.rs` :: generalized raw fixture parsing helpers (HTML + JSON) and applied to all initial adapters :: increases real parser coverage while keeping snapshot compatibility
+- `crates/rhof-adapters/Cargo.toml`, `Cargo.lock` :: added `scraper` dependency :: supports HTML fixture parsing
+- `POST_FLIGHT_REPORT.md` :: refreshed score/issue wording for improved adapter parser coverage after this round
+---

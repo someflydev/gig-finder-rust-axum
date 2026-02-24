@@ -10,6 +10,7 @@ use rhof_core::{EvidenceRef, Field, OpportunityDraft};
 use rhof_storage::HttpFetcher;
 use scraper::{Html, Selector};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -240,118 +241,106 @@ fn bundle_to_drafts(bundle: &FixtureBundle) -> Vec<OpportunityDraft> {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct FixtureFirstAdapter {
+struct HtmlTitleLinkFixtureAdapter {
     source_id: &'static str,
     crawlability: Crawlability,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct AppenCrowdgenAdapter;
+struct JsonTitleApplyFixtureAdapter {
+    source_id: &'static str,
+    crawlability: Crawlability,
+}
 
-impl AppenCrowdgenAdapter {
-    fn parse_from_raw_html(&self, bundle: &FixtureBundle) -> Result<Option<Vec<OpportunityDraft>>, AdapterError> {
-        let Some(html_text) = bundle.raw_artifact.inline_text.as_deref() else {
-            return Ok(None);
-        };
-        let document = Html::parse_document(html_text);
-        let h1_sel = Selector::parse("h1").map_err(|e| AdapterError::Message(e.to_string()))?;
-        let link_sel = Selector::parse("a[href]").map_err(|e| AdapterError::Message(e.to_string()))?;
-
-        let title_text = document
-            .select(&h1_sel)
-            .next()
-            .map(|n| n.text().collect::<String>().trim().to_string())
-            .filter(|s| !s.is_empty());
-        let apply_url = document
-            .select(&link_sel)
-            .next()
-            .and_then(|n| n.value().attr("href"))
-            .map(|s| s.to_string());
-
-        if title_text.is_none() && apply_url.is_none() {
-            return Ok(None);
-        }
-
-        let mut drafts = bundle_to_drafts(bundle);
-        let Some(first) = drafts.get_mut(0) else {
-            return Ok(None);
-        };
-
-        if let Some(title) = title_text {
-            first.title = fixture_field_to_core(
-                &FixtureField {
-                    value: Some(title.clone()),
-                    selector_or_pointer: "h1".to_string(),
-                    snippet: title,
-                },
-                bundle,
-            );
-        }
-
-        if let Some(url) = apply_url {
-            first.apply_url = fixture_field_to_core(
-                &FixtureField {
-                    value: Some(url.clone()),
-                    selector_or_pointer: "a[href]".to_string(),
-                    snippet: url,
-                },
-                bundle,
-            );
-        }
-
-        Ok(Some(drafts))
+fn apply_title_url_override(
+    bundle: &FixtureBundle,
+    drafts: &mut [OpportunityDraft],
+    title: Option<(String, String, String)>,
+    apply_url: Option<(String, String, String)>,
+) -> Option<()> {
+    let first = drafts.get_mut(0)?;
+    if let Some((value, selector_or_pointer, snippet)) = title {
+        first.title = fixture_field_to_core(
+            &FixtureField {
+                value: Some(value),
+                selector_or_pointer,
+                snippet,
+            },
+            bundle,
+        );
     }
+    if let Some((value, selector_or_pointer, snippet)) = apply_url {
+        first.apply_url = fixture_field_to_core(
+            &FixtureField {
+                value: Some(value),
+                selector_or_pointer,
+                snippet,
+            },
+            bundle,
+        );
+    }
+    Some(())
+}
+
+fn parse_title_apply_from_raw_html(bundle: &FixtureBundle) -> Result<Option<Vec<OpportunityDraft>>, AdapterError> {
+    let Some(html_text) = bundle.raw_artifact.inline_text.as_deref() else {
+        return Ok(None);
+    };
+    let document = Html::parse_document(html_text);
+    let h1_sel = Selector::parse("h1").map_err(|e| AdapterError::Message(e.to_string()))?;
+    let link_sel = Selector::parse("a[href]").map_err(|e| AdapterError::Message(e.to_string()))?;
+
+    let title = document
+        .select(&h1_sel)
+        .next()
+        .map(|n| n.text().collect::<String>().trim().to_string())
+        .filter(|s| !s.is_empty())
+        .map(|s| (s.clone(), "h1".to_string(), s));
+    let apply = document
+        .select(&link_sel)
+        .next()
+        .and_then(|n| n.value().attr("href"))
+        .map(|s| (s.to_string(), "a[href]".to_string(), s.to_string()));
+
+    if title.is_none() && apply.is_none() {
+        return Ok(None);
+    }
+
+    let mut drafts = bundle_to_drafts(bundle);
+    if apply_title_url_override(bundle, &mut drafts, title, apply).is_none() {
+        return Ok(None);
+    }
+    Ok(Some(drafts))
+}
+
+fn parse_title_apply_from_raw_json(bundle: &FixtureBundle) -> Result<Option<Vec<OpportunityDraft>>, AdapterError> {
+    let Some(text) = bundle.raw_artifact.inline_text.as_deref() else {
+        return Ok(None);
+    };
+    let value: JsonValue = serde_json::from_str(text)
+        .map_err(|e| AdapterError::Message(format!("invalid raw JSON fixture: {e}")))?;
+    let title = value
+        .get("title")
+        .and_then(|v| v.as_str())
+        .map(|s| (s.to_string(), "$.title".to_string(), s.to_string()));
+    let apply = value
+        .get("apply_url")
+        .and_then(|v| v.as_str())
+        .map(|s| (s.to_string(), "$.apply_url".to_string(), s.to_string()));
+
+    if title.is_none() && apply.is_none() {
+        return Ok(None);
+    }
+
+    let mut drafts = bundle_to_drafts(bundle);
+    if apply_title_url_override(bundle, &mut drafts, title, apply).is_none() {
+        return Ok(None);
+    }
+    Ok(Some(drafts))
 }
 
 #[async_trait]
-impl SourceAdapter for AppenCrowdgenAdapter {
-    fn source_id(&self) -> &'static str {
-        "appen-crowdgen"
-    }
-
-    fn crawlability(&self) -> Crawlability {
-        Crawlability::PublicHtml
-    }
-
-    async fn fetch_listing(
-        &self,
-        _http: &HttpFetcher,
-        _ctx: &AdapterContext,
-        _targets: &[ListingTarget],
-    ) -> Result<Vec<FetchedPage>, AdapterError> {
-        Ok(Vec::new())
-    }
-
-    fn parse_listing(&self, bundle: &FixtureBundle) -> Result<Vec<OpportunityDraft>, AdapterError> {
-        if bundle.source_id != self.source_id() {
-            return Err(AdapterError::Message(format!(
-                "bundle source_id={} does not match adapter source_id={}",
-                bundle.source_id,
-                self.source_id()
-            )));
-        }
-        if let Some(drafts) = self.parse_from_raw_html(bundle)? {
-            return Ok(drafts);
-        }
-        Ok(bundle_to_drafts(bundle))
-    }
-
-    async fn fetch_detail(
-        &self,
-        _http: &HttpFetcher,
-        _ctx: &AdapterContext,
-        _targets: &[DetailTarget],
-    ) -> Result<Vec<FetchedPage>, AdapterError> {
-        Ok(Vec::new())
-    }
-
-    fn parse_detail(&self, bundle: &FixtureBundle) -> Result<Vec<OpportunityDraft>, AdapterError> {
-        self.parse_listing(bundle)
-    }
-}
-
-#[async_trait]
-impl SourceAdapter for FixtureFirstAdapter {
+impl SourceAdapter for HtmlTitleLinkFixtureAdapter {
     fn source_id(&self) -> &'static str {
         self.source_id
     }
@@ -376,6 +365,55 @@ impl SourceAdapter for FixtureFirstAdapter {
                 bundle.source_id, self.source_id
             )));
         }
+        if let Some(drafts) = parse_title_apply_from_raw_html(bundle)? {
+            return Ok(drafts);
+        }
+        Ok(bundle_to_drafts(bundle))
+    }
+
+    async fn fetch_detail(
+        &self,
+        _http: &HttpFetcher,
+        _ctx: &AdapterContext,
+        _targets: &[DetailTarget],
+    ) -> Result<Vec<FetchedPage>, AdapterError> {
+        Ok(Vec::new())
+    }
+
+    fn parse_detail(&self, bundle: &FixtureBundle) -> Result<Vec<OpportunityDraft>, AdapterError> {
+        self.parse_listing(bundle)
+    }
+}
+
+#[async_trait]
+impl SourceAdapter for JsonTitleApplyFixtureAdapter {
+    fn source_id(&self) -> &'static str {
+        self.source_id
+    }
+
+    fn crawlability(&self) -> Crawlability {
+        self.crawlability
+    }
+
+    async fn fetch_listing(
+        &self,
+        _http: &HttpFetcher,
+        _ctx: &AdapterContext,
+        _targets: &[ListingTarget],
+    ) -> Result<Vec<FetchedPage>, AdapterError> {
+        Ok(Vec::new())
+    }
+
+    fn parse_listing(&self, bundle: &FixtureBundle) -> Result<Vec<OpportunityDraft>, AdapterError> {
+        if bundle.source_id != self.source_id {
+            return Err(AdapterError::Message(format!(
+                "bundle source_id={} does not match adapter source_id={}",
+                bundle.source_id, self.source_id
+            )));
+        }
+        if let Some(drafts) = parse_title_apply_from_raw_json(bundle)? {
+            return Ok(drafts);
+        }
         Ok(bundle_to_drafts(bundle))
     }
 
@@ -394,32 +432,35 @@ impl SourceAdapter for FixtureFirstAdapter {
 }
 
 pub fn appen_crowdgen_adapter() -> impl SourceAdapter {
-    AppenCrowdgenAdapter
+    HtmlTitleLinkFixtureAdapter {
+        source_id: "appen-crowdgen",
+        crawlability: Crawlability::PublicHtml,
+    }
 }
 
 pub fn clickworker_adapter() -> impl SourceAdapter {
-    FixtureFirstAdapter {
+    HtmlTitleLinkFixtureAdapter {
         source_id: "clickworker",
         crawlability: Crawlability::PublicHtml,
     }
 }
 
 pub fn oneforma_jobs_adapter() -> impl SourceAdapter {
-    FixtureFirstAdapter {
+    HtmlTitleLinkFixtureAdapter {
         source_id: "oneforma-jobs",
         crawlability: Crawlability::PublicHtml,
     }
 }
 
 pub fn telus_ai_community_adapter() -> impl SourceAdapter {
-    FixtureFirstAdapter {
+    HtmlTitleLinkFixtureAdapter {
         source_id: "telus-ai-community",
         crawlability: Crawlability::PublicHtml,
     }
 }
 
 pub fn prolific_manual_adapter() -> impl SourceAdapter {
-    FixtureFirstAdapter {
+    JsonTitleApplyFixtureAdapter {
         source_id: "prolific",
         crawlability: Crawlability::ManualOnly,
     }
@@ -427,20 +468,23 @@ pub fn prolific_manual_adapter() -> impl SourceAdapter {
 
 pub fn adapter_for_source(source_id: &str) -> Option<Box<dyn SourceAdapter>> {
     match source_id {
-        "appen-crowdgen" => Some(Box::new(AppenCrowdgenAdapter)),
-        "clickworker" => Some(Box::new(FixtureFirstAdapter {
+        "appen-crowdgen" => Some(Box::new(HtmlTitleLinkFixtureAdapter {
+            source_id: "appen-crowdgen",
+            crawlability: Crawlability::PublicHtml,
+        })),
+        "clickworker" => Some(Box::new(HtmlTitleLinkFixtureAdapter {
             source_id: "clickworker",
             crawlability: Crawlability::PublicHtml,
         })),
-        "oneforma-jobs" => Some(Box::new(FixtureFirstAdapter {
+        "oneforma-jobs" => Some(Box::new(HtmlTitleLinkFixtureAdapter {
             source_id: "oneforma-jobs",
             crawlability: Crawlability::PublicHtml,
         })),
-        "telus-ai-community" => Some(Box::new(FixtureFirstAdapter {
+        "telus-ai-community" => Some(Box::new(HtmlTitleLinkFixtureAdapter {
             source_id: "telus-ai-community",
             crawlability: Crawlability::PublicHtml,
         })),
-        "prolific" => Some(Box::new(FixtureFirstAdapter {
+        "prolific" => Some(Box::new(JsonTitleApplyFixtureAdapter {
             source_id: "prolific",
             crawlability: Crawlability::ManualOnly,
         })),

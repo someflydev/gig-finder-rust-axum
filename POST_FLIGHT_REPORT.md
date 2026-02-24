@@ -91,13 +91,13 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 
 ## 4. Completeness Score (0–100) + Rubric Breakdown
 
-### Overall Score: **84 / 100**
+### Overall Score: **86 / 100**
 
-### A) Core Functionality (0–25): **22 / 25**
+### A) Core Functionality (0–25): **23 / 25**
 - Sync persists DB rows + versions + tags/risk/review and writes reports/parquet (`crates/rhof-sync/src/lib.rs:676`, `crates/rhof-sync/src/lib.rs:823`, `crates/rhof-sync/src/lib.rs:1013`).
 - `migrate`, `sync`, `report`, `serve`, and `scheduler` command paths exist (`crates/rhof-cli/src/main.rs:74`, `crates/rhof-cli/src/main.rs:78`).
 - Web UI prefers DB-backed reads (`crates/rhof-web/src/lib.rs:403`, `crates/rhof-web/src/lib.rs:441`, `crates/rhof-web/src/lib.rs:545`).
-- Remaining gap: adapter realism is uneven (only partial raw parsing demonstrated), and review resolve is not durable yet (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-web/src/lib.rs:341`).
+- Remaining gap: adapters now parse raw title/apply fields from fixtures, but most canonical fields still come from fixture `parsed_records`; review resolve is also not durable yet (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-web/src/lib.rs:341`).
 
 ### B) Developer Experience (0–20): **17 / 20**
 - Quickstart and runbook are accurate (`README.md:13`, `docs/RUNBOOK.md:5`).
@@ -128,10 +128,10 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 - Distribution story is source-first (`cargo run`) rather than packaged binaries/releases.
 
 ### Biggest reason the score is not higher
-Adapter implementations are still mostly fixture-replay based, so the project demonstrates architecture, provenance, and persistence well, but not yet broad real parser robustness (`crates/rhof-adapters/src/lib.rs:243`, `crates/rhof-adapters/src/lib.rs:252`).
+Adapter implementations now parse raw fixture title/apply fields across the initial adapters, but broader field extraction logic is still mostly fixture-driven, so parser robustness is only partially demonstrated (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430`).
 
 ### Single most leverage improvement to raise it fastest
-Implement raw-HTML/JSON parser logic for the remaining initial adapters using the Appen parser path as the template (`crates/rhof-adapters/src/lib.rs:249`, `crates/rhof-adapters/src/lib.rs:397`).
+Expand raw parsing beyond title/apply into more canonical fields (description/pay/requirements) for the initial adapters, using the current HTML/JSON raw parse helpers as the template (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430`).
 
 ## 5. General Excellence Rating (1–10) + Evidence
 
@@ -155,7 +155,7 @@ No `P0` or `P1` issues remain.
 
 | Issue ID | Priority | Prompt ID | Problem | Evidence | Impact | Suggested Fix |
 |---|---|---|---|---|---|---|
-| PFN-014 | P2 | `PROMPT_04`, `PROMPT_10` | Only one adapter (Appen) demonstrates raw fixture parsing; others still replay `parsed_records`. | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | Limits confidence in parser resilience across source changes. | Implement raw parser paths for remaining initial adapters incrementally, preserving snapshot tests. |
+| PFN-014 | P2 | `PROMPT_04`, `PROMPT_10` | Initial adapters now parse raw title/apply fields, but most canonical fields are still sourced from fixture `parsed_records`. | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | Parser resilience is only partially proven for real extraction logic. | Expand raw parser coverage (description/pay/requirements/constraints) incrementally while preserving snapshot tests. |
 | PFN-015 | P2 | `PROMPT_06`, `PROMPT_08` | Dedup review lifecycle is partially persisted (`review_items`) but cluster proposal tables are unused and review resolve endpoint is UI-only. | `crates/rhof-sync/src/lib.rs:898`, `migrations/20260223210000_init_schema.up.sql:106`, `crates/rhof-web/src/lib.rs:341` | Incomplete review/audit workflow and underused schema design. | Persist dedup clusters/members and make `/review/:id/resolve` update `review_items`. |
 | PFN-016 | P2 | `PROMPT_05`, `PROMPT_09` | Scheduler mode exists, but lacks operational hardening (status reporting/metrics/locking/retry policy). | `crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137` | Suitable for local use, but not yet trustworthy for unattended operation. | Add daemon logging/metrics, optional run locking, and explicit failure handling/backoff policy. |
 | PFN-017 | P3 | `PROMPT_10` | `sample-source` generator artifacts still live in repo and can be mistaken for a real adapter implementation outside docs. | `fixtures/sample-source/sample/bundle.json:1`, `crates/rhof-adapters/tests/sample-source_snapshot.rs:1` | Minor surface-area noise for contributors. | Move generator sample artifacts into `examples/` or delete/regenerate in tests as needed. |
@@ -196,7 +196,7 @@ No `P0` or `P1` issues remain.
 
 | # | Next step | Why it matters | Evidence anchor | Effort |
 |---|---|---|---|---|
-| 1 | Implement raw parser paths for remaining initial adapters | Biggest completeness gain after persistence | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | M |
+| 1 | Expand raw parser coverage beyond title/apply for the initial adapters | Biggest remaining completeness gain in adapter realism | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | M |
 | 2 | Persist dedup clusters/members and wire review lifecycle end-to-end | Completes review/audit workflow and uses existing schema | `migrations/20260223210000_init_schema.up.sql:106`, `crates/rhof-sync/src/lib.rs:898` | M |
 | 3 | Make `/review/:id/resolve` durable in Postgres | Aligns UI action with persisted review queue | `crates/rhof-web/src/lib.rs:341` | M |
 | 4 | Add scheduler hardening (run locks, retries/metrics/logging) | Moves scheduler from local/dev use toward unattended reliability | `crates/rhof-sync/src/lib.rs:1137` | M |
