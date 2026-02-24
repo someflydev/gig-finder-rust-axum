@@ -1605,6 +1605,9 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use rhof_core::Field;
+    use sqlx::Row;
+    use std::path::Path;
+    use tempfile::tempdir;
 
     fn mk_item(source_id: &str, title: &str) -> StagedOpportunity {
         StagedOpportunity {
@@ -1639,6 +1642,67 @@ mod tests {
                 requirements: Field::empty(),
             },
         }
+    }
+
+    fn copy_dir_recursive(src: &Path, dst: &Path) {
+        std::fs::create_dir_all(dst).unwrap();
+        for entry in std::fs::read_dir(src).unwrap() {
+            let entry = entry.unwrap();
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+            if src_path.is_dir() {
+                copy_dir_recursive(&src_path, &dst_path);
+            } else {
+                if let Some(parent) = dst_path.parent() {
+                    std::fs::create_dir_all(parent).unwrap();
+                }
+                std::fs::copy(&src_path, &dst_path).unwrap();
+            }
+        }
+    }
+
+    fn set_json_path_str(value: &mut serde_json::Value, path: &[&str], new_value: &str) {
+        let mut cursor = value;
+        for segment in &path[..path.len() - 1] {
+            cursor = cursor.get_mut(*segment).unwrap();
+        }
+        *cursor.get_mut(path[path.len() - 1]).unwrap() = serde_json::Value::String(new_value.to_string());
+    }
+
+    fn rewrite_single_record_html_bundle(bundle_path: &Path, raw_html_path: &Path, title: &str, apply_url: &str) {
+        let mut bundle: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(bundle_path).unwrap()).unwrap();
+        let first = bundle["parsed_records"][0].clone();
+        let mut record = first;
+        set_json_path_str(&mut record, &["title", "value"], title);
+        set_json_path_str(&mut record, &["title", "snippet"], title);
+        set_json_path_str(&mut record, &["description", "value"], &format!("Description for {title}"));
+        set_json_path_str(&mut record, &["description", "snippet"], title);
+        set_json_path_str(&mut record, &["apply_url", "value"], apply_url);
+        set_json_path_str(&mut record, &["apply_url", "snippet"], apply_url);
+        set_json_path_str(&mut record, &["listing_url"], apply_url);
+        set_json_path_str(&mut record, &["detail_url"], apply_url);
+        bundle["parsed_records"] = serde_json::Value::Array(vec![record]);
+        std::fs::write(bundle_path, serde_json::to_string_pretty(&bundle).unwrap()).unwrap();
+
+        let html = format!(
+            "<!doctype html><html><body><h1>{}</h1><a href=\"{}\">Apply</a></body></html>",
+            title, apply_url
+        );
+        std::fs::write(raw_html_path, html).unwrap();
+    }
+
+    fn write_single_source_yaml(path: &Path) {
+        let yaml = r#"sources:
+  - source_id: clickworker
+    display_name: Clickworker
+    enabled: true
+    crawlability: PublicHtml
+    mode: fixture
+    listing_urls:
+      - https://www.clickworker.com/jobs
+"#;
+        std::fs::write(path, yaml).unwrap();
     }
 
     #[test]
@@ -1683,5 +1747,117 @@ mod tests {
         assert!(clusters.is_empty());
         assert_eq!(review.len(), 1);
         assert!(review[0].confidence_score >= 0.88);
+    }
+
+    #[tokio::test]
+    async fn db_migrate_and_repeated_sync_are_idempotent() {
+        let db_url = "postgres://rhof:rhof@localhost:5401/rhof";
+        let pool = match PgPool::connect(db_url).await {
+            Ok(pool) => pool,
+            Err(_) => {
+                eprintln!("skipping DB idempotency integration test; local Postgres unavailable");
+                return;
+            }
+        };
+        MIGRATOR.run(&pool).await.unwrap();
+
+        let marker = format!(
+            "syncit{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let title = format!("Clickworker Data Task {}", marker);
+        let apply_url = format!("https://example.test/{marker}/clickworker");
+
+        let temp = tempdir().unwrap();
+        let root = temp.path().to_path_buf();
+        std::fs::create_dir_all(root.join("fixtures")).unwrap();
+        std::fs::create_dir_all(root.join("rules")).unwrap();
+        copy_dir_recursive(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join("rules").as_path(),
+            &root.join("rules"),
+        );
+        copy_dir_recursive(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join("fixtures/clickworker")
+                .as_path(),
+            &root.join("fixtures/clickworker"),
+        );
+        write_single_source_yaml(&root.join("sources.yaml"));
+        rewrite_single_record_html_bundle(
+            &root.join("fixtures/clickworker/sample/bundle.json"),
+            &root.join("fixtures/clickworker/sample/raw/listing.html"),
+            &title,
+            &apply_url,
+        );
+
+        let cfg = SyncConfig {
+            database_url: db_url.to_string(),
+            artifacts_dir: root.join("artifacts"),
+            scheduler_enabled: false,
+            sync_cron_1: "0 6 * * *".to_string(),
+            sync_cron_2: "0 18 * * *".to_string(),
+            user_agent: "rhof-sync-test/0.1".to_string(),
+            http_timeout_secs: 5,
+            workspace_root: root.clone(),
+        };
+
+        let first = run_sync_once_with_config(cfg.clone()).await.unwrap();
+        let second = run_sync_once_with_config(cfg).await.unwrap();
+        assert_eq!(first.enabled_sources, 1);
+        assert_eq!(first.parsed_drafts, 1);
+        assert_eq!(second.enabled_sources, 1);
+        assert_eq!(second.parsed_drafts, 1);
+        assert_eq!(second.persisted_versions, 0, "second sync should not create a new version");
+
+        let opportunity_count: i64 = sqlx::query(
+            r#"
+            SELECT COUNT(*) AS count
+              FROM opportunities
+             WHERE apply_url = $1
+            "#,
+        )
+        .bind(&apply_url)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .try_get("count")
+        .unwrap();
+        assert_eq!(opportunity_count, 1);
+
+        let version_count: i64 = sqlx::query(
+            r#"
+            SELECT COUNT(*) AS count
+              FROM opportunity_versions ov
+              JOIN opportunities o ON o.id = ov.opportunity_id
+             WHERE o.apply_url = $1
+            "#,
+        )
+        .bind(&apply_url)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .try_get("count")
+        .unwrap();
+        assert_eq!(version_count, 1, "idempotent sync should keep one version for unchanged fixture data");
+
+        let completed_runs: i64 = sqlx::query(
+            r#"
+            SELECT COUNT(*) AS count
+              FROM fetch_runs
+             WHERE id = ANY($1)
+               AND status = 'completed'
+            "#,
+        )
+        .bind(vec![first.run_id, second.run_id])
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .try_get("count")
+        .unwrap();
+        assert_eq!(completed_runs, 2);
     }
 }

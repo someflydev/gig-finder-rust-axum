@@ -77,13 +77,13 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 
 | Prompt ID | Intended artifacts | Found artifacts | Status | Notes | Suggested follow-up |
 |---|---|---|---|---|---|
-| `PROMPT_00_s.txt` | Execution contract + stack + mission constraints | `.prompts/PROMPT_00_s.txt`, repo-root RHOF workspace, runnable CLI/web, persisted sync path | Partial | Major contract elements are implemented (DB-backed sync, durable review resolution, dedup cluster persistence), and there is now a DB-backed integration test covering sync -> review queue -> resolve. Remaining gaps are live fetching and broader raw parsing depth (`crates/rhof-adapters/src/lib.rs:234`, `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:875`). | Broaden raw parser coverage and promote DB-backed integration coverage into CI. |
+| `PROMPT_00_s.txt` | Execution contract + stack + mission constraints | `.prompts/PROMPT_00_s.txt`, repo-root RHOF workspace, runnable CLI/web, persisted sync path | Partial | Major contract elements are implemented (DB-backed sync, durable review resolution, dedup cluster persistence), and DB-backed integration tests now cover both review resolution and migrate+sync idempotency workflows. Remaining gaps are live fetching and broader raw parsing depth (`crates/rhof-adapters/src/lib.rs:234`, `crates/rhof-sync/src/lib.rs:1753`, `crates/rhof-web/src/lib.rs:875`). | Broaden raw parser coverage and add lightweight CLI-wrapper smoke coverage in CI. |
 | `PROMPT_01.txt` | Repo-root workspace + Docker/Just/env/docs/rules/`sources.yaml` + Tailwind workflow | All listed scaffold artifacts present | Delivered | Tailwind bootstrap gap resolved with `just tailwind-install` and script (`justfile:23`, `scripts/install-tailwind.sh:31`). | Optional: add checksum verification in Tailwind installer. |
 | `PROMPT_02.txt` | Domain model + migrations + migration execution path | `rhof-core` types + SQL migration + embedded migrator + CLI migrate command | Delivered | Migrations are runnable and migration history is tracked (`crates/rhof-sync/src/lib.rs:31`, `crates/rhof-sync/src/lib.rs:1107`). | Add migration integration test against ephemeral Postgres in CI (future). |
 | `PROMPT_03.txt` | Immutable artifact storage + HTTP client/retry/rate-limits + tests | `crates/rhof-storage/src/lib.rs` | Delivered | Strong implementation and tests for hashing/atomic writes/backoff (`crates/rhof-storage/src/lib.rs:65`, `crates/rhof-storage/src/lib.rs:397`). | Add HTTP integration tests for retry classifications. |
 | `PROMPT_04.txt` | Adapter trait + 5 initial adapters + unified fixture/manual schema + snapshots | `rhof-adapters`, fixture bundles, manual prolific fixture | Partial | Contract/schema/tests are strong. All initial adapters now parse basic `title`/`apply_url` fields from raw fixtures, but broader canonical fields still rely heavily on fixture `parsed_records` (`crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430`). | Expand raw parser coverage to description/pay/requirements fields incrementally. |
 | `PROMPT_05.txt` | Sync orchestration + reports + scheduler + idempotency | `rhof-sync`, DB persistence path, reports/parquet outputs, scheduler command path | Partial | Sync is DB-backed and idempotent for versions (`crates/rhof-sync/src/lib.rs:495`, `crates/rhof-sync/src/lib.rs:676`). Scheduler jobs now execute sync when enabled, but operational hardening is minimal (`crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137`). | Add scheduler metrics/supervision/backoff controls. |
-| `PROMPT_06.txt` | Dedup + YAML rules + tests | `rhof-sync` dedup/rules + `rules/*.yaml` + tests | Delivered | Dedup/rules logic and tests are present, cluster proposals/members are persisted, and a DB-backed integration test now exercises duplicate/review persistence via sync (`crates/rhof-sync/src/lib.rs:214`, `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:875`). | Promote DB-backed duplicate/review integration coverage into CI service jobs. |
+| `PROMPT_06.txt` | Dedup + YAML rules + tests | `rhof-sync` dedup/rules + `rules/*.yaml` + tests | Delivered | Dedup/rules logic and tests are present, cluster proposals/members are persisted, and a DB-backed integration test exercises duplicate/review persistence via sync (`crates/rhof-sync/src/lib.rs:214`, `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:875`). | Add a focused duplicate/review fixture set to `rhof-sync` tests later if you want to reduce cross-crate integration coverage coupling. |
 | `PROMPT_07.txt` | Parquet exports + manifest + `report daily` CLI | `rhof-sync` parquet/manifest + `rhof-cli report daily` | Delivered | Manifest hashes + Parquet outputs are implemented and routable in reports (`crates/rhof-sync/src/lib.rs:1013`, `crates/rhof-sync/src/lib.rs:1147`). | Document Parquet schemas formally in `docs/`. |
 | `PROMPT_08.txt` | Axum routes + Askama + HTMX + Plotly JSON + smoke tests | `rhof-web` routes/templates/tests | Delivered | Route surface and smoke tests match prompt; web loaders prefer DB-backed sources/opportunities, and `/review/{id}/resolve` now updates `review_items` when DB config is present (`crates/rhof-web/src/lib.rs:199`, `crates/rhof-web/src/lib.rs:356`, `crates/rhof-web/src/lib.rs:647`). | Add a DB-backed integration test for review resolve to prevent regressions. |
 | `PROMPT_09.txt` | CLI commands + seed + CI + guardrails + port policy | `rhof-cli`, CI workflow, adapter checklist, evidence warnings, source badges | Delivered | `migrate`, `sync`, `serve`, `report`, `seed`, `debug`, `scheduler` all exist (`crates/rhof-cli/src/main.rs:13`). SQLx contributor prerequisites are now documented (`README.md:36`, `docs/RUNBOOK.md:10`). | Optional: add CI check for `rhof-cli migrate` against service DB. |
@@ -91,7 +91,7 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 
 ## 4. Completeness Score (0–100) + Rubric Breakdown
 
-### Overall Score: **88 / 100**
+### Overall Score: **89 / 100**
 
 ### A) Core Functionality (0–25): **24 / 25**
 - Sync persists DB rows + versions + tags/risk/review and writes reports/parquet (`crates/rhof-sync/src/lib.rs:676`, `crates/rhof-sync/src/lib.rs:823`, `crates/rhof-sync/src/lib.rs:1013`).
@@ -105,12 +105,12 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 - `sqlx-prepare` prerequisites are documented (`README.md:38`, `docs/RUNBOOK.md:10`).
 - Remaining friction: some workflows still assume manual local tool installs (`cargo-sqlx`, Tailwind binary download).
 
-### C) Tests + Quality Gates (0–15): **14 / 15**
-- 16 Rust tests pass across key crates.
-- CI runs `fmt`, `clippy`, adapter contract checks, an explicit DB-backed review workflow integration test, and workspace tests (`.github/workflows/ci.yml:16`, `.github/workflows/ci.yml:27`, `.github/workflows/ci.yml:63`, `.github/workflows/ci.yml:66`).
+### C) Tests + Quality Gates (0–15): **15 / 15**
+- 18 Rust tests pass across key crates.
+- CI runs `fmt`, `clippy`, adapter contract checks, an explicit DB-backed review workflow integration test, an explicit DB migrate+sync idempotency integration test, and workspace tests (`.github/workflows/ci.yml:16`, `.github/workflows/ci.yml:27`, `.github/workflows/ci.yml:63`, `.github/workflows/ci.yml:65`, `.github/workflows/ci.yml:68`).
 - Adapter contract checker is stronger now (`scripts/check_adapters.py:84`, `scripts/check_adapters.py:89`).
 - DB-backed integration coverage now exists for `sync -> review queue -> resolve` in `rhof-web` tests (`crates/rhof-web/src/lib.rs:875`).
-- Remaining gap: CI still does not run a dedicated DB integration test for `migrate` + repeated `sync` idempotency (manual verification exists, but no enforced regression test).
+- DB-backed integration coverage now also exists for migration + repeated sync idempotency in `rhof-sync` tests (`crates/rhof-sync/src/lib.rs:1753`) and is explicitly run in CI.
 
 ### D) Docs + Examples (0–15): **13 / 15**
 - README quickstart, runbook, source notes, and adapter checklist are all useful and current (`README.md:13`, `docs/RUNBOOK.md:12`, `docs/SOURCES.md:1`, `docs/ADAPTER_CHECKLIST.md:1`).
@@ -158,7 +158,7 @@ No `P0` or `P1` issues remain.
 | Issue ID | Priority | Prompt ID | Problem | Evidence | Impact | Suggested Fix |
 |---|---|---|---|---|---|---|
 | PFN-014 | P2 | `PROMPT_04`, `PROMPT_10` | Initial adapters now parse raw title/apply fields, but most canonical fields are still sourced from fixture `parsed_records`. | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | Parser resilience is only partially proven for real extraction logic. | Expand raw parser coverage (description/pay/requirements/constraints) incrementally while preserving snapshot tests. |
-| PFN-015 | P2 | `PROMPT_05`, `PROMPT_09` | CI has a Postgres-backed test job and now runs the durable review workflow integration test, but it still lacks an enforced DB integration test for `migrate` + repeated `sync` idempotency. | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676`, `.github/workflows/ci.yml:32`, `.github/workflows/ci.yml:63` | A core persistence/idempotency contract is still protected only by manual verification. | Add a CI step/test that runs `rhof-cli migrate`, `rhof-cli sync` twice, and asserts stable record/version behavior. |
+| PFN-015 | P3 | `PROMPT_09` | CI now enforces library-level DB idempotency/review integration tests, but it still does not explicitly smoke-test the CLI wrappers (`rhof-cli migrate`, `rhof-cli sync`) in CI. | `crates/rhof-cli/src/main.rs:74`, `crates/rhof-sync/src/lib.rs:1753`, `.github/workflows/ci.yml:65` | Low-to-medium regression risk in thin command wiring and docs-facing entrypoints. | Add a lightweight CI CLI smoke step (`cargo run -p rhof-cli -- migrate` and `sync`) using the existing Postgres service job. |
 | PFN-016 | P2 | `PROMPT_05`, `PROMPT_09` | Scheduler mode exists, but lacks operational hardening (status reporting/metrics/locking/retry policy). | `crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137` | Suitable for local use, but not yet trustworthy for unattended operation. | Add daemon logging/metrics, optional run locking, and explicit failure handling/backoff policy. |
 | PFN-017 | P3 | `PROMPT_10` | `sample-source` generator artifacts still live in repo and can be mistaken for a real adapter implementation outside docs. | `fixtures/sample-source/sample/bundle.json:1`, `crates/rhof-adapters/tests/sample-source_snapshot.rs:1` | Minor surface-area noise for contributors. | Move generator sample artifacts into `examples/` or delete/regenerate in tests as needed. |
 | PFN-018 | P3 | Packaging (cross-cutting) | Release/package hygiene is still minimal (no root `LICENSE` file/changelog/release checklist). | `Cargo.toml:15`, root scan (no `LICENSE*` / `CHANGELOG*`) | Lowers external credibility and onboarding confidence. | Add `LICENSE`, `CHANGELOG.md` stub, and a simple release checklist section in README/docs. |
@@ -199,12 +199,12 @@ No `P0` or `P1` issues remain.
 | # | Next step | Why it matters | Evidence anchor | Effort |
 |---|---|---|---|---|
 | 1 | Expand raw parser coverage beyond title/apply for the initial adapters | Biggest remaining completeness gain in adapter realism | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | M |
-| 2 | Add CI integration test for `migrate` + sync idempotency | Converts manual verification into enforced regression protection using the existing Postgres service CI job | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676`, `.github/workflows/ci.yml:32` | M |
-| 3 | Add scheduler hardening (run locks, retries/metrics/logging) | Moves scheduler from local/dev use toward unattended reliability | `crates/rhof-sync/src/lib.rs:1137` | M |
-| 4 | Document report JSON + Parquet schemas | Improves downstream usability and product packaging | `crates/rhof-sync/src/lib.rs:1013` | S |
-| 5 | Decide fate of `sample-source` scaffolds (`examples/` vs remove) | Reduces contributor ambiguity | `docs/SOURCES.md:18` | S |
-| 6 | Add `LICENSE` file + changelog/release checklist | Improves external packaging credibility | `Cargo.toml:15` | S |
-| 7 | Add one-command demo script (`db-up` + `migrate` + `sync` + `serve`) | Sharpens onboarding/demo experience | `README.md:13`, `docs/RUNBOOK.md:5` | S |
-| 8 | Expand frontend visual polish via Tailwind build (optional) | Improves front-facing demo quality beyond baseline CSS | `assets/static/app.css:1`, `docs/RUNBOOK.md:45` | S |
-| 9 | Add checksum verification to `tailwind-install` bootstrap | Hardens binary bootstrap safety for contributors | `scripts/install-tailwind.sh:31` | S |
-| 10 | Add a small operational modes matrix to README/runbook | Clarifies manual sync vs scheduler vs web-only operation | `README.md:13`, `docs/RUNBOOK.md:5` | S |
+| 2 | Add scheduler hardening (run locks, retries/metrics/logging) | Moves scheduler from local/dev use toward unattended reliability | `crates/rhof-sync/src/lib.rs:1137` | M |
+| 3 | Document report JSON + Parquet schemas | Improves downstream usability and product packaging | `crates/rhof-sync/src/lib.rs:1013` | S |
+| 4 | Decide fate of `sample-source` scaffolds (`examples/` vs remove) | Reduces contributor ambiguity | `docs/SOURCES.md:18` | S |
+| 5 | Add `LICENSE` file + changelog/release checklist | Improves external packaging credibility | `Cargo.toml:15` | S |
+| 6 | Add one-command demo script (`db-up` + `migrate` + `sync` + `serve`) | Sharpens onboarding/demo experience | `README.md:13`, `docs/RUNBOOK.md:5` | S |
+| 7 | Expand frontend visual polish via Tailwind build (optional) | Improves front-facing demo quality beyond baseline CSS | `assets/static/app.css:1`, `docs/RUNBOOK.md:45` | S |
+| 8 | Add checksum verification to `tailwind-install` bootstrap | Hardens binary bootstrap safety for contributors | `scripts/install-tailwind.sh:31` | S |
+| 9 | Add a small operational modes matrix to README/runbook | Clarifies manual sync vs scheduler vs web-only operation | `README.md:13`, `docs/RUNBOOK.md:5` | S |
+| 10 | Add a lightweight CLI smoke step in CI for `rhof-cli migrate` / `sync` | Protects docs-facing command wiring in addition to library-level tests | `crates/rhof-cli/src/main.rs:74`, `.github/workflows/ci.yml:65` | S |

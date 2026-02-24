@@ -62,5 +62,7 @@ jobs:
         run: python3 scripts/check_adapters.py
       - name: DB-backed review workflow integration test
         run: cargo test -p rhof-web db_backed_sync_review_and_resolve_flow_persists_review_and_clusters -- --nocapture
+      - name: DB migrate+sync idempotency integration test
+        run: cargo test -p rhof-sync db_migrate_and_repeated_sync_are_idempotent -- --nocapture
       - name: cargo test
         run: cargo test --workspace
