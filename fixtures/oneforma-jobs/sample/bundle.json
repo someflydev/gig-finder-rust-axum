@@ -1,0 +1,35 @@
+{
+  "fixture_id": "sample",
+  "source_id": "oneforma-jobs",
+  "crawlability": "PublicHtml",
+  "captured_from_url": "https://jobs.oneforma.com/",
+  "fetched_at": "2026-02-24T12:10:00Z",
+  "extractor_version": "oneforma-v1",
+  "raw_artifact": {
+    "content_type": "text/html",
+    "path": "raw/listing.html",
+    "inline_text": null,
+    "sha256": null
+  },
+  "parsed_records": [
+    {
+      "title": {"value": "OneForma UHRS Contributor", "selector_or_pointer": "h1", "snippet": "OneForma UHRS Contributor"},
+      "description": {"value": "Perform microtasks in the UHRS platform.", "selector_or_pointer": ".summary", "snippet": "microtasks"},
+      "pay_model": {"value": "task-based", "selector_or_pointer": ".pay", "snippet": "per task"},
+      "pay_rate_min": {"value": 8.0, "selector_or_pointer": ".pay", "snippet": "$8/hr equivalent"},
+      "pay_rate_max": {"value": 15.0, "selector_or_pointer": ".pay", "snippet": "$8-$15/hr equivalent"},
+      "currency": {"value": "USD", "selector_or_pointer": ".pay", "snippet": "USD"},
+      "min_hours_per_week": {"value": 2.0, "selector_or_pointer": ".hours", "snippet": "2 hrs/week"},
+      "verification_requirements": {"value": "Tax and identity checks", "selector_or_pointer": ".verification", "snippet": "Tax"},
+      "geo_constraints": {"value": "Global", "selector_or_pointer": ".geo", "snippet": "Global"},
+      "one_off_vs_ongoing": {"value": "ongoing", "selector_or_pointer": ".duration", "snippet": "ongoing"},
+      "payment_methods": {"value": ["Payoneer", "PayPal"], "selector_or_pointer": ".payments", "snippet": "Payoneer"},
+      "apply_url": {"value": "https://jobs.oneforma.com/job/uhrs-contributor", "selector_or_pointer": "a[href]", "snippet": "Apply"},
+      "requirements": {"value": ["Internet access"], "selector_or_pointer": ".requirements li", "snippet": "Internet access"},
+      "listing_url": "https://jobs.oneforma.com/",
+      "detail_url": "https://jobs.oneforma.com/job/uhrs-contributor"
+    }
+  ],
+  "evidence_coverage_percent": 100.0,
+  "notes": "Fixture-first adapter parsing bundle for OneForma."
+}

@@ -1,0 +1,35 @@
+{
+  "fixture_id": "sample",
+  "source_id": "clickworker",
+  "crawlability": "PublicHtml",
+  "captured_from_url": "https://www.clickworker.com/clickworker-job/",
+  "fetched_at": "2026-02-24T12:05:00Z",
+  "extractor_version": "clickworker-v1",
+  "raw_artifact": {
+    "content_type": "text/html",
+    "path": "raw/listing.html",
+    "inline_text": null,
+    "sha256": null
+  },
+  "parsed_records": [
+    {
+      "title": {"value": "Clickworker AI Data Contributor", "selector_or_pointer": "h1", "snippet": "Clickworker AI Data Contributor"},
+      "description": {"value": "Contribute labeled data for AI systems.", "selector_or_pointer": ".summary", "snippet": "labeled data"},
+      "pay_model": {"value": "hourly", "selector_or_pointer": ".pay", "snippet": "$12/hr"},
+      "pay_rate_min": {"value": 12.0, "selector_or_pointer": ".pay", "snippet": "$12/hr"},
+      "pay_rate_max": {"value": 16.0, "selector_or_pointer": ".pay", "snippet": "$12-$16/hr"},
+      "currency": {"value": "USD", "selector_or_pointer": ".pay", "snippet": "USD"},
+      "min_hours_per_week": {"value": 5.0, "selector_or_pointer": ".hours", "snippet": "5 hrs/week"},
+      "verification_requirements": {"value": "Profile verification", "selector_or_pointer": ".verification", "snippet": "verify your profile"},
+      "geo_constraints": {"value": "Global (country-dependent tasks)", "selector_or_pointer": ".geo", "snippet": "country-dependent"},
+      "one_off_vs_ongoing": {"value": "ongoing", "selector_or_pointer": ".duration", "snippet": "ongoing"},
+      "payment_methods": {"value": ["PayPal"], "selector_or_pointer": ".payments", "snippet": "PayPal"},
+      "apply_url": {"value": "https://www.clickworker.com/clickworker-job/ai-data-contributor/", "selector_or_pointer": "a[href]", "snippet": "Apply"},
+      "requirements": {"value": ["Smartphone", "English"], "selector_or_pointer": ".requirements li", "snippet": "Smartphone"},
+      "listing_url": "https://www.clickworker.com/clickworker-job/",
+      "detail_url": "https://www.clickworker.com/clickworker-job/ai-data-contributor/"
+    }
+  ],
+  "evidence_coverage_percent": 100.0,
+  "notes": "Fixture-first adapter parsing bundle for Clickworker."
+}

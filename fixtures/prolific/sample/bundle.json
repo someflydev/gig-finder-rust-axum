@@ -1,0 +1,35 @@
+{
+  "fixture_id": "sample",
+  "source_id": "prolific",
+  "crawlability": "ManualOnly",
+  "captured_from_url": "https://app.prolific.com/studies",
+  "fetched_at": "2026-02-24T12:20:00Z",
+  "extractor_version": "prolific-manual-v1",
+  "raw_artifact": {
+    "content_type": "application/json",
+    "path": "raw/study.json",
+    "inline_text": null,
+    "sha256": null
+  },
+  "parsed_records": [
+    {
+      "title": {"value": "Prolific Remote Research Study", "selector_or_pointer": "$.title", "snippet": "Prolific Remote Research Study"},
+      "description": {"value": "Manual ingestion of a gated study listing.", "selector_or_pointer": "$.description", "snippet": "Manual ingestion"},
+      "pay_model": {"value": "fixed", "selector_or_pointer": "$.reward", "snippet": "$6.00 fixed"},
+      "pay_rate_min": {"value": 6.0, "selector_or_pointer": "$.reward", "snippet": "$6.00"},
+      "pay_rate_max": {"value": 6.0, "selector_or_pointer": "$.reward", "snippet": "$6.00"},
+      "currency": {"value": "USD", "selector_or_pointer": "$.currency", "snippet": "USD"},
+      "min_hours_per_week": {"value": null, "selector_or_pointer": "$.hours", "snippet": ""},
+      "verification_requirements": {"value": "Prolific account", "selector_or_pointer": "$.requirements", "snippet": "Prolific account"},
+      "geo_constraints": {"value": "US", "selector_or_pointer": "$.audience.country", "snippet": "US"},
+      "one_off_vs_ongoing": {"value": "one_off", "selector_or_pointer": "$.type", "snippet": "one-off"},
+      "payment_methods": {"value": ["Prolific payout"], "selector_or_pointer": "$.payment", "snippet": "Prolific payout"},
+      "apply_url": {"value": "https://app.prolific.com/studies/example", "selector_or_pointer": "$.apply_url", "snippet": "https://app.prolific.com/studies/example"},
+      "requirements": {"value": ["Age 18+"], "selector_or_pointer": "$.eligibility", "snippet": "Age 18+"},
+      "listing_url": "https://app.prolific.com/studies",
+      "detail_url": "https://app.prolific.com/studies/example"
+    }
+  ],
+  "evidence_coverage_percent": 100.0,
+  "notes": "Manual-only fixture bundle used by adapter tests and seed ingestion."
+}

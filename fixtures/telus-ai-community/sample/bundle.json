@@ -1,0 +1,35 @@
+{
+  "fixture_id": "sample",
+  "source_id": "telus-ai-community",
+  "crawlability": "PublicHtml",
+  "captured_from_url": "https://www.telusdigital.com/careers/ai-community",
+  "fetched_at": "2026-02-24T12:15:00Z",
+  "extractor_version": "telus-v1",
+  "raw_artifact": {
+    "content_type": "text/html",
+    "path": "raw/listing.html",
+    "inline_text": null,
+    "sha256": null
+  },
+  "parsed_records": [
+    {
+      "title": {"value": "TELUS AI Community Internet Assessor", "selector_or_pointer": "h1", "snippet": "Internet Assessor"},
+      "description": {"value": "Evaluate online search and content quality.", "selector_or_pointer": ".summary", "snippet": "content quality"},
+      "pay_model": {"value": "hourly", "selector_or_pointer": ".pay", "snippet": "hourly"},
+      "pay_rate_min": {"value": 11.0, "selector_or_pointer": ".pay", "snippet": "$11/hr"},
+      "pay_rate_max": {"value": 17.0, "selector_or_pointer": ".pay", "snippet": "$11-$17/hr"},
+      "currency": {"value": "USD", "selector_or_pointer": ".pay", "snippet": "USD"},
+      "min_hours_per_week": {"value": 10.0, "selector_or_pointer": ".hours", "snippet": "10 hrs/week"},
+      "verification_requirements": {"value": "Identity verification", "selector_or_pointer": ".verification", "snippet": "Identity verification"},
+      "geo_constraints": {"value": "US", "selector_or_pointer": ".geo", "snippet": "US"},
+      "one_off_vs_ongoing": {"value": "ongoing", "selector_or_pointer": ".duration", "snippet": "ongoing"},
+      "payment_methods": {"value": ["Direct deposit"], "selector_or_pointer": ".payments", "snippet": "Direct deposit"},
+      "apply_url": {"value": "https://www.telusdigital.com/careers/ai-community/internet-assessor", "selector_or_pointer": "a[href]", "snippet": "Apply"},
+      "requirements": {"value": ["Computer", "English"], "selector_or_pointer": ".requirements li", "snippet": "Computer"},
+      "listing_url": "https://www.telusdigital.com/careers/ai-community",
+      "detail_url": "https://www.telusdigital.com/careers/ai-community/internet-assessor"
+    }
+  ],
+  "evidence_coverage_percent": 100.0,
+  "notes": "TELUS public pages only fixture bundle."
+}

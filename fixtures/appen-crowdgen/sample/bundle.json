@@ -1,0 +1,35 @@
+{
+  "fixture_id": "sample",
+  "source_id": "appen-crowdgen",
+  "crawlability": "PublicHtml",
+  "captured_from_url": "https://crowdgen.com/jobs/",
+  "fetched_at": "2026-02-24T12:00:00Z",
+  "extractor_version": "appen-v1",
+  "raw_artifact": {
+    "content_type": "text/html",
+    "path": "raw/listing.html",
+    "inline_text": null,
+    "sha256": null
+  },
+  "parsed_records": [
+    {
+      "title": {"value": "Appen Search Relevance Rater", "selector_or_pointer": "h1", "snippet": "Appen Search Relevance Rater"},
+      "description": {"value": "Evaluate search result relevance on a flexible schedule.", "selector_or_pointer": ".job-description", "snippet": "Evaluate search result relevance"},
+      "pay_model": {"value": "hourly", "selector_or_pointer": ".pay", "snippet": "$14.00/hr"},
+      "pay_rate_min": {"value": 14.0, "selector_or_pointer": ".pay", "snippet": "$14.00/hr"},
+      "pay_rate_max": {"value": 18.0, "selector_or_pointer": ".pay", "snippet": "$14.00-$18.00/hr"},
+      "currency": {"value": "USD", "selector_or_pointer": ".pay", "snippet": "USD"},
+      "min_hours_per_week": {"value": 10.0, "selector_or_pointer": ".hours", "snippet": "10+ hrs/week"},
+      "verification_requirements": {"value": "ID verification", "selector_or_pointer": ".requirements", "snippet": "ID verification"},
+      "geo_constraints": {"value": "US", "selector_or_pointer": ".geo", "snippet": "United States"},
+      "one_off_vs_ongoing": {"value": "ongoing", "selector_or_pointer": ".duration", "snippet": "ongoing project"},
+      "payment_methods": {"value": ["Payoneer"], "selector_or_pointer": ".payments", "snippet": "Payoneer"},
+      "apply_url": {"value": "https://crowdgen.com/jobs/search-rater", "selector_or_pointer": "a[href]", "snippet": "Apply"},
+      "requirements": {"value": ["English fluency", "Computer"], "selector_or_pointer": ".requirements li", "snippet": "English fluency"},
+      "listing_url": "https://crowdgen.com/jobs/",
+      "detail_url": "https://crowdgen.com/jobs/search-rater"
+    }
+  ],
+  "evidence_coverage_percent": 100.0,
+  "notes": "Fixture-first adapter parsing bundle for Appen."
+}
