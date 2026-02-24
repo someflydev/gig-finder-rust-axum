@@ -16,6 +16,8 @@ enum Commands {
         #[command(subcommand)]
         command: ReportCommands,
     },
+    Seed,
+    Debug,
     Migrate,
     Serve,
 }
@@ -47,6 +49,18 @@ async fn main() -> Result<()> {
                 println!("{markdown}");
             }
         },
+        Commands::Seed => {
+            let summary = rhof_sync::seed_from_fixtures_from_env().await?;
+            println!(
+                "seed complete (fixture-derived): run_id={} artifacts={} drafts={} reports={}",
+                summary.run_id, summary.fetched_artifacts, summary.parsed_drafts, summary.reports_dir
+            );
+            println!("parquet manifest: {}", summary.parquet_manifest);
+        }
+        Commands::Debug => {
+            let info = rhof_sync::debug_summary_from_env()?;
+            println!("{info}");
+        }
         Commands::Migrate => {
             eprintln!("migrate command scaffolded; sqlx wiring lands in later prompts");
         }

@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: rhof
+          POSTGRES_PASSWORD: rhof
+          POSTGRES_DB: rhof
+        ports:
+          - 5401:5432
+        options: >-
+          --health-cmd "pg_isready -U rhof -d rhof"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://rhof:rhof@localhost:5401/rhof
+      ARTIFACTS_DIR: ./artifacts
+      RHOF_WEB_PORT: 8000
+      RHOF_SCHEDULER_ENABLED: false
+      SYNC_CRON_1: "0 6 * * *"
+      SYNC_CRON_2: "0 18 * * *"
+      RHOF_HTTP_TIMEOUT_SECS: 20
+      RHOF_USER_AGENT: rhof-bot/0.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: cargo test
+        run: cargo test --workspace

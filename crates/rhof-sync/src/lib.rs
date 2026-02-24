@@ -460,6 +460,7 @@ impl SyncPipeline {
             let drafts = adapter.parse_listing(&bundle)?;
             parsed_drafts += drafts.len();
             for draft in drafts {
+                warn_if_evidence_missing(&draft);
                 let canonical_key = normalize_canonical_key(&draft);
                 staged.push(StagedOpportunity {
                     source_id: source.source_id.clone(),
@@ -686,6 +687,29 @@ pub async fn run_sync_once_from_env() -> Result<SyncRunSummary> {
     pipeline.run_once().await
 }
 
+pub async fn seed_from_fixtures_from_env() -> Result<SyncRunSummary> {
+    // Current seed behavior reuses the fixture-driven sync pipeline. It remains deterministic
+    // because fixture bundles are checked in and artifact paths are hash-addressed.
+    run_sync_once_from_env().await
+}
+
+pub fn debug_summary_from_env() -> Result<String> {
+    let cfg = SyncConfig::from_env();
+    let reports_md = report_daily_markdown(3, Some(cfg.workspace_root.clone()))
+        .unwrap_or_else(|e| format!("(report summary unavailable: {e})"));
+    Ok(format!(
+        "RHOF Debug Summary\n\n- DATABASE_URL: {}\n- ARTIFACTS_DIR: {}\n- RHOF_SCHEDULER_ENABLED: {}\n- SYNC_CRON_1: {}\n- SYNC_CRON_2: {}\n- RHOF_HTTP_TIMEOUT_SECS: {}\n- RHOF_USER_AGENT: {}\n\n{}",
+        cfg.database_url,
+        cfg.artifacts_dir.display(),
+        cfg.scheduler_enabled,
+        cfg.sync_cron_1,
+        cfg.sync_cron_2,
+        cfg.http_timeout_secs,
+        cfg.user_agent,
+        reports_md
+    ))
+}
+
 pub fn report_daily_markdown(runs: usize, workspace_root: Option<PathBuf>) -> Result<String> {
     let root = workspace_root.unwrap_or_else(|| PathBuf::from("."));
     let reports_root = root.join("reports");
@@ -752,6 +776,38 @@ fn normalize_canonical_key(draft: &OpportunityDraft) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect::<String>();
     format!("{}:{}", draft.source_id, title.trim_matches('-'))
+}
+
+fn warn_if_evidence_missing(draft: &OpportunityDraft) {
+    let checks = [
+        ("title", draft.title.value.is_some(), draft.title.evidence.is_some()),
+        (
+            "description",
+            draft.description.value.is_some(),
+            draft.description.evidence.is_some(),
+        ),
+        (
+            "pay_model",
+            draft.pay_model.value.is_some(),
+            draft.pay_model.evidence.is_some(),
+        ),
+        (
+            "currency",
+            draft.currency.value.is_some(),
+            draft.currency.evidence.is_some(),
+        ),
+        (
+            "apply_url",
+            draft.apply_url.value.is_some(),
+            draft.apply_url.evidence.is_some(),
+        ),
+    ];
+
+    for (field, populated, has_evidence) in checks {
+        if populated && !has_evidence {
+            warn!(source_id = %draft.source_id, field, "populated canonical field missing evidence");
+        }
+    }
 }
 
 fn write_parquet(path: &PathBuf, batch: RecordBatch) -> Result<()> {
