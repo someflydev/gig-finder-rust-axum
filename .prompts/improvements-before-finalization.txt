@@ -1,4 +1,21 @@
 ---
+Timestamp: 2026-02-23T22:32:51-0600
+Summary: Tightened CI coverage signal for the durable review workflow by adding an explicit DB-backed review integration test step to the existing Postgres-backed CI test job. Refreshed the post-flight report to remove the stale “not enforced in CI” gap and promote `migrate + sync` idempotency CI coverage as the next systems-completeness priority.
+Top 10 issues found:
+- P2: CI still lacks an enforced DB integration test for `migrate` + repeated `sync` idempotency.
+- P2: Raw parser coverage is still shallow (mostly `title`/`apply_url`) across initial adapters.
+- P2: Scheduler mode remains minimally hardened (no run locks/metrics/retry policy).
+- P3: Formal report JSON schema docs are still missing.
+- P3: Formal Parquet schema docs are still missing.
+- P3: `sample-source` generator artifacts remain in-tree and may confuse contributors.
+- P3: Root `LICENSE` file is still missing.
+- P3: Changelog/release checklist is still missing.
+- P3: Tailwind installer script would benefit from checksum verification.
+- P3: README/runbook could use a small operational-modes matrix.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `.github/workflows/ci.yml` :: + explicit `DB-backed review workflow integration test` step under the existing Postgres-backed `test` job :: makes durable review-flow coverage visible and harder to regress silently in CI
+- `POST_FLIGHT_REPORT.md` :: refreshed tests/issues/next-steps to reflect explicit CI enforcement of the review workflow integration test :: keeps audit priorities accurate
+---
 Timestamp: 2026-02-23T22:21:11-0600
 Summary: Added regression coverage for the newly implemented durable dedup/review workflow by creating a DB-backed `rhof-web` integration test that builds a temporary workspace, rewrites fixture bundles to trigger both auto-cluster and review cases, runs sync, asserts persisted dedup/review rows, and verifies `/review/{id}/resolve` updates Postgres state.
 Top 10 issues found:

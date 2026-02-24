@@ -107,10 +107,10 @@ The happy path is still fixture-driven (source fixtures/manual bundles), but it 
 
 ### C) Tests + Quality Gates (0–15): **14 / 15**
 - 16 Rust tests pass across key crates.
-- CI runs `fmt`, `clippy`, adapter contract checks, and workspace tests (`.github/workflows/ci.yml:16`, `.github/workflows/ci.yml:27`, `.github/workflows/ci.yml:61`, `.github/workflows/ci.yml:64`).
+- CI runs `fmt`, `clippy`, adapter contract checks, an explicit DB-backed review workflow integration test, and workspace tests (`.github/workflows/ci.yml:16`, `.github/workflows/ci.yml:27`, `.github/workflows/ci.yml:63`, `.github/workflows/ci.yml:66`).
 - Adapter contract checker is stronger now (`scripts/check_adapters.py:84`, `scripts/check_adapters.py:89`).
 - DB-backed integration coverage now exists for `sync -> review queue -> resolve` in `rhof-web` tests (`crates/rhof-web/src/lib.rs:875`).
-- Remaining gap: DB-backed integration tests are not yet wired into CI service jobs (and migrate+sync idempotency is still only manually verified in CI).
+- Remaining gap: CI still does not run a dedicated DB integration test for `migrate` + repeated `sync` idempotency (manual verification exists, but no enforced regression test).
 
 ### D) Docs + Examples (0–15): **13 / 15**
 - README quickstart, runbook, source notes, and adapter checklist are all useful and current (`README.md:13`, `docs/RUNBOOK.md:12`, `docs/SOURCES.md:1`, `docs/ADAPTER_CHECKLIST.md:1`).
@@ -158,7 +158,7 @@ No `P0` or `P1` issues remain.
 | Issue ID | Priority | Prompt ID | Problem | Evidence | Impact | Suggested Fix |
 |---|---|---|---|---|---|---|
 | PFN-014 | P2 | `PROMPT_04`, `PROMPT_10` | Initial adapters now parse raw title/apply fields, but most canonical fields are still sourced from fixture `parsed_records`. | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | Parser resilience is only partially proven for real extraction logic. | Expand raw parser coverage (description/pay/requirements/constraints) incrementally while preserving snapshot tests. |
-| PFN-015 | P2 | `PROMPT_06`, `PROMPT_08` | Durable dedup/review workflow is implemented and covered by a local DB-backed integration test, but that coverage is not yet enforced in CI and still depends on a local Postgres service. | `crates/rhof-sync/src/lib.rs:830`, `crates/rhof-web/src/lib.rs:875`, `.github/workflows/ci.yml:16` | Important audit/review workflow can regress without CI catching it. | Add a CI job with Postgres service to run the DB-backed review integration test (and later expand to migrate+sync idempotency). |
+| PFN-015 | P2 | `PROMPT_05`, `PROMPT_09` | CI has a Postgres-backed test job and now runs the durable review workflow integration test, but it still lacks an enforced DB integration test for `migrate` + repeated `sync` idempotency. | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676`, `.github/workflows/ci.yml:32`, `.github/workflows/ci.yml:63` | A core persistence/idempotency contract is still protected only by manual verification. | Add a CI step/test that runs `rhof-cli migrate`, `rhof-cli sync` twice, and asserts stable record/version behavior. |
 | PFN-016 | P2 | `PROMPT_05`, `PROMPT_09` | Scheduler mode exists, but lacks operational hardening (status reporting/metrics/locking/retry policy). | `crates/rhof-sync/src/lib.rs:525`, `crates/rhof-sync/src/lib.rs:1137` | Suitable for local use, but not yet trustworthy for unattended operation. | Add daemon logging/metrics, optional run locking, and explicit failure handling/backoff policy. |
 | PFN-017 | P3 | `PROMPT_10` | `sample-source` generator artifacts still live in repo and can be mistaken for a real adapter implementation outside docs. | `fixtures/sample-source/sample/bundle.json:1`, `crates/rhof-adapters/tests/sample-source_snapshot.rs:1` | Minor surface-area noise for contributors. | Move generator sample artifacts into `examples/` or delete/regenerate in tests as needed. |
 | PFN-018 | P3 | Packaging (cross-cutting) | Release/package hygiene is still minimal (no root `LICENSE` file/changelog/release checklist). | `Cargo.toml:15`, root scan (no `LICENSE*` / `CHANGELOG*`) | Lowers external credibility and onboarding confidence. | Add `LICENSE`, `CHANGELOG.md` stub, and a simple release checklist section in README/docs. |
@@ -199,12 +199,12 @@ No `P0` or `P1` issues remain.
 | # | Next step | Why it matters | Evidence anchor | Effort |
 |---|---|---|---|---|
 | 1 | Expand raw parser coverage beyond title/apply for the initial adapters | Biggest remaining completeness gain in adapter realism | `crates/rhof-adapters/src/lib.rs:252`, `crates/rhof-adapters/src/lib.rs:430` | M |
-| 2 | Add CI Postgres service job to run the DB-backed review workflow integration test | Converts new local integration coverage into enforced regression protection | `crates/rhof-web/src/lib.rs:875`, `.github/workflows/ci.yml:16` | M |
+| 2 | Add CI integration test for `migrate` + sync idempotency | Converts manual verification into enforced regression protection using the existing Postgres service CI job | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676`, `.github/workflows/ci.yml:32` | M |
 | 3 | Add scheduler hardening (run locks, retries/metrics/logging) | Moves scheduler from local/dev use toward unattended reliability | `crates/rhof-sync/src/lib.rs:1137` | M |
-| 4 | Add CI integration test for `migrate` + sync idempotency | Converts manual verification into regression protection | `crates/rhof-sync/src/lib.rs:1107`, `crates/rhof-sync/src/lib.rs:676` | M |
-| 5 | Document report JSON + Parquet schemas | Improves downstream usability and product packaging | `crates/rhof-sync/src/lib.rs:1013` | S |
-| 6 | Decide fate of `sample-source` scaffolds (`examples/` vs remove) | Reduces contributor ambiguity | `docs/SOURCES.md:18` | S |
-| 7 | Add `LICENSE` file + changelog/release checklist | Improves external packaging credibility | `Cargo.toml:15` | S |
-| 8 | Add one-command demo script (`db-up` + `migrate` + `sync` + `serve`) | Sharpens onboarding/demo experience | `README.md:13`, `docs/RUNBOOK.md:5` | S |
-| 9 | Expand frontend visual polish via Tailwind build (optional) | Improves front-facing demo quality beyond baseline CSS | `assets/static/app.css:1`, `docs/RUNBOOK.md:45` | S |
-| 10 | Add checksum verification to `tailwind-install` bootstrap | Hardens binary bootstrap safety for contributors | `scripts/install-tailwind.sh:31` | S |
+| 4 | Document report JSON + Parquet schemas | Improves downstream usability and product packaging | `crates/rhof-sync/src/lib.rs:1013` | S |
+| 5 | Decide fate of `sample-source` scaffolds (`examples/` vs remove) | Reduces contributor ambiguity | `docs/SOURCES.md:18` | S |
+| 6 | Add `LICENSE` file + changelog/release checklist | Improves external packaging credibility | `Cargo.toml:15` | S |
+| 7 | Add one-command demo script (`db-up` + `migrate` + `sync` + `serve`) | Sharpens onboarding/demo experience | `README.md:13`, `docs/RUNBOOK.md:5` | S |
+| 8 | Expand frontend visual polish via Tailwind build (optional) | Improves front-facing demo quality beyond baseline CSS | `assets/static/app.css:1`, `docs/RUNBOOK.md:45` | S |
+| 9 | Add checksum verification to `tailwind-install` bootstrap | Hardens binary bootstrap safety for contributors | `scripts/install-tailwind.sh:31` | S |
+| 10 | Add a small operational modes matrix to README/runbook | Clarifies manual sync vs scheduler vs web-only operation | `README.md:13`, `docs/RUNBOOK.md:5` | S |
