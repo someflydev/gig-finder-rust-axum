@@ -147,7 +147,10 @@ pub fn load_fixture_bundle(path: impl AsRef<Path>) -> Result<FixtureBundle> {
 }
 
 pub fn load_manual_fixture_bundle(path: impl AsRef<Path>) -> Result<FixtureBundle> {
-    read_json_file(path)
+    let path = path.as_ref();
+    let mut bundle: FixtureBundle = read_json_file(path)?;
+    hydrate_inline_raw_artifact(path, &mut bundle)?;
+    Ok(bundle)
 }
 
 fn read_json_file<T: DeserializeOwned>(path: impl AsRef<Path>) -> Result<T> {
@@ -252,88 +255,323 @@ struct JsonTitleApplyFixtureAdapter {
     crawlability: Crawlability,
 }
 
-fn apply_title_url_override(
-    bundle: &FixtureBundle,
-    drafts: &mut [OpportunityDraft],
-    title: Option<(String, String, String)>,
-    apply_url: Option<(String, String, String)>,
-) -> Option<()> {
-    let first = drafts.get_mut(0)?;
-    if let Some((value, selector_or_pointer, snippet)) = title {
-        first.title = fixture_field_to_core(
-            &FixtureField {
-                value: Some(value),
-                selector_or_pointer,
-                snippet,
-            },
-            bundle,
-        );
+fn override_field_value<T>(field: &mut Field<T>, value: Option<T>) {
+    if let Some(value) = value {
+        field.value = Some(value);
     }
-    if let Some((value, selector_or_pointer, snippet)) = apply_url {
-        first.apply_url = fixture_field_to_core(
-            &FixtureField {
-                value: Some(value),
-                selector_or_pointer,
-                snippet,
-            },
-            bundle,
-        );
+}
+
+fn text_or_none(value: String) -> Option<String> {
+    let trimmed = value.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
     }
-    Some(())
+}
+
+fn select_first_text(document: &Html, selector: &str) -> Result<Option<String>, AdapterError> {
+    let sel = Selector::parse(selector).map_err(|e| AdapterError::Message(e.to_string()))?;
+    Ok(document
+        .select(&sel)
+        .next()
+        .and_then(|n| text_or_none(n.text().collect::<String>())))
+}
+
+fn select_all_texts(document: &Html, selector: &str) -> Result<Vec<String>, AdapterError> {
+    let sel = Selector::parse(selector).map_err(|e| AdapterError::Message(e.to_string()))?;
+    Ok(document
+        .select(&sel)
+        .filter_map(|n| text_or_none(n.text().collect::<String>()))
+        .collect())
+}
+
+fn select_first_attr(document: &Html, selector: &str, attr: &str) -> Result<Option<String>, AdapterError> {
+    let sel = Selector::parse(selector).map_err(|e| AdapterError::Message(e.to_string()))?;
+    Ok(document
+        .select(&sel)
+        .next()
+        .and_then(|n| n.value().attr(attr))
+        .and_then(|s| text_or_none(s.to_string())))
+}
+
+fn extract_numbers(text: &str) -> Vec<f64> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut seen_dot = false;
+    for ch in text.chars() {
+        if ch.is_ascii_digit() {
+            current.push(ch);
+            continue;
+        }
+        if ch == '.' && !seen_dot && !current.is_empty() {
+            current.push(ch);
+            seen_dot = true;
+            continue;
+        }
+        if !current.is_empty() {
+            if let Ok(v) = current.parse::<f64>() {
+                out.push(v);
+            }
+            current.clear();
+            seen_dot = false;
+        }
+    }
+    if !current.is_empty() {
+        if let Ok(v) = current.parse::<f64>() {
+            out.push(v);
+        }
+    }
+    out
+}
+
+fn parse_pay_fields(pay_text: &str) -> (Option<String>, Option<f64>, Option<f64>, Option<String>) {
+    let lower = pay_text.to_ascii_lowercase();
+    let pay_model = if lower.contains("per task") || lower.contains("task-based") {
+        Some("task-based".to_string())
+    } else if lower.contains("fixed") {
+        Some("fixed".to_string())
+    } else if lower.contains("/hr") || lower.contains("hourly") {
+        Some("hourly".to_string())
+    } else {
+        None
+    };
+    let nums = extract_numbers(pay_text);
+    let pay_rate_min = nums.first().copied();
+    let pay_rate_max = nums.get(1).copied().or(pay_rate_min);
+    let currency = if lower.contains("usd") || pay_text.contains('$') {
+        Some("USD".to_string())
+    } else {
+        None
+    };
+    (pay_model, pay_rate_min, pay_rate_max, currency)
+}
+
+fn normalize_duration(value: &str) -> Option<String> {
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("one-off") || lower.contains("one off") {
+        Some("one_off".to_string())
+    } else if lower.contains("ongoing") {
+        Some("ongoing".to_string())
+    } else {
+        None
+    }
+}
+
+fn apply_extended_html_overrides(bundle: &FixtureBundle, drafts: &mut [OpportunityDraft]) -> Result<bool, AdapterError> {
+    let Some(html_text) = bundle.raw_artifact.inline_text.as_deref() else {
+        return Ok(false);
+    };
+    let Some(first) = drafts.get_mut(0) else {
+        return Ok(false);
+    };
+    let document = Html::parse_document(html_text);
+
+    let title = select_first_text(&document, "h1")?;
+    let apply = select_first_attr(&document, "a[href]", "href")?;
+    let description = select_first_text(&document, ".job-description")?
+        .or(select_first_text(&document, ".summary")?);
+    let pay_text = select_first_text(&document, ".pay")?;
+    let hours_text = select_first_text(&document, ".hours")?;
+    let verification = select_first_text(&document, ".verification")?
+        .or(select_first_text(&document, ".requirements .verification")?);
+    let geo = select_first_text(&document, ".geo")?;
+    let duration = select_first_text(&document, ".duration")?;
+    let mut payment_methods = select_all_texts(&document, ".payments li")?;
+    if payment_methods.is_empty() {
+        if let Some(payments_text) = select_first_text(&document, ".payments")? {
+            payment_methods = payments_text
+                .split(',')
+                .filter_map(|s| text_or_none(s.to_string()))
+                .collect();
+        }
+    }
+    let requirements = select_all_texts(&document, ".requirements li")?;
+
+    let mut applied = false;
+    if let Some(t) = title {
+        first.title.value = Some(t);
+        applied = true;
+    }
+    if let Some(url) = apply {
+        first.apply_url.value = Some(url);
+        applied = true;
+    }
+    if let Some(desc) = description {
+        first.description.value = Some(desc);
+        applied = true;
+    }
+    if let Some(pay) = pay_text.as_deref() {
+        let (pay_model, pay_min, pay_max, currency) = parse_pay_fields(pay);
+        override_field_value(&mut first.pay_model, pay_model);
+        override_field_value(&mut first.pay_rate_min, pay_min);
+        override_field_value(&mut first.pay_rate_max, pay_max);
+        override_field_value(&mut first.currency, currency);
+        applied = true;
+    }
+    if let Some(hours) = hours_text.as_deref() {
+        override_field_value(&mut first.min_hours_per_week, extract_numbers(hours).first().copied());
+        applied = true;
+    }
+    if let Some(v) = verification {
+        first.verification_requirements.value = Some(v);
+        applied = true;
+    }
+    if let Some(g) = geo {
+        first.geo_constraints.value = Some(g);
+        applied = true;
+    }
+    if let Some(d) = duration.as_deref() {
+        override_field_value(&mut first.one_off_vs_ongoing, normalize_duration(d));
+        applied = true;
+    }
+    if !payment_methods.is_empty() {
+        first.payment_methods.value = Some(payment_methods);
+        applied = true;
+    }
+    if !requirements.is_empty() {
+        first.requirements.value = Some(requirements);
+        applied = true;
+    }
+
+    Ok(applied)
+}
+
+fn json_str<'a>(value: &'a JsonValue, path: &[&str]) -> Option<&'a str> {
+    let mut cur = value;
+    for segment in path {
+        cur = cur.get(*segment)?;
+    }
+    cur.as_str()
+}
+
+fn json_f64(value: &JsonValue, path: &[&str]) -> Option<f64> {
+    let mut cur = value;
+    for segment in path {
+        cur = cur.get(*segment)?;
+    }
+    cur.as_f64()
+}
+
+fn json_string_vec(value: &JsonValue, path: &[&str]) -> Option<Vec<String>> {
+    let mut cur = value;
+    for segment in path {
+        cur = cur.get(*segment)?;
+    }
+    let arr = cur.as_array()?;
+    let vals = arr
+        .iter()
+        .filter_map(|v| v.as_str().map(ToString::to_string))
+        .collect::<Vec<_>>();
+    if vals.is_empty() {
+        None
+    } else {
+        Some(vals)
+    }
+}
+
+fn apply_extended_json_overrides(bundle: &FixtureBundle, drafts: &mut [OpportunityDraft]) -> Result<bool, AdapterError> {
+    let Some(text) = bundle.raw_artifact.inline_text.as_deref() else {
+        return Ok(false);
+    };
+    let Some(first) = drafts.get_mut(0) else {
+        return Ok(false);
+    };
+    let value: JsonValue = serde_json::from_str(text)
+        .map_err(|e| AdapterError::Message(format!("invalid raw JSON fixture: {e}")))?;
+
+    let title = json_str(&value, &["title"]).map(ToString::to_string);
+    let apply = json_str(&value, &["apply_url"]).map(ToString::to_string);
+    let description = json_str(&value, &["description"]).map(ToString::to_string);
+    let pay_model = json_str(&value, &["reward", "model"])
+        .or_else(|| json_str(&value, &["pay_model"]))
+        .map(|s| {
+            if s.eq_ignore_ascii_case("one-off") {
+                "one_off".to_string()
+            } else {
+                s.to_string()
+            }
+        });
+    let pay_rate_min = json_f64(&value, &["reward", "min"]).or_else(|| json_f64(&value, &["reward_min"]));
+    let pay_rate_max = json_f64(&value, &["reward", "max"])
+        .or_else(|| json_f64(&value, &["reward_max"]))
+        .or(pay_rate_min);
+    let currency = json_str(&value, &["reward", "currency"])
+        .or_else(|| json_str(&value, &["currency"]))
+        .map(ToString::to_string);
+    let min_hours_per_week = json_f64(&value, &["hours_per_week_min"]).or_else(|| json_f64(&value, &["hours"]));
+    let verification = json_str(&value, &["verification_requirements"])
+        .or_else(|| json_str(&value, &["requirements"]))
+        .map(ToString::to_string);
+    let geo = json_str(&value, &["audience", "country"])
+        .or_else(|| json_str(&value, &["geo"]))
+        .map(ToString::to_string);
+    let duration = json_str(&value, &["type"]).and_then(normalize_duration);
+    let payment_methods = json_string_vec(&value, &["payment_methods"]).or_else(|| {
+        json_str(&value, &["payment"]).map(|s| vec![s.to_string()])
+    });
+    let requirements = json_string_vec(&value, &["eligibility"])
+        .or_else(|| json_string_vec(&value, &["requirements_list"]))
+        .or_else(|| json_str(&value, &["eligibility"]).map(|s| vec![s.to_string()]));
+
+    let mut applied = false;
+    if let Some(t) = title {
+        first.title.value = Some(t);
+        applied = true;
+    }
+    if let Some(url) = apply {
+        first.apply_url.value = Some(url);
+        applied = true;
+    }
+    if let Some(desc) = description {
+        first.description.value = Some(desc);
+        applied = true;
+    }
+    override_field_value(&mut first.pay_model, pay_model);
+    override_field_value(&mut first.pay_rate_min, pay_rate_min);
+    override_field_value(&mut first.pay_rate_max, pay_rate_max);
+    override_field_value(&mut first.currency, currency);
+    override_field_value(&mut first.min_hours_per_week, min_hours_per_week);
+    if let Some(v) = verification {
+        first.verification_requirements.value = Some(v);
+        applied = true;
+    }
+    if let Some(g) = geo {
+        first.geo_constraints.value = Some(g);
+        applied = true;
+    }
+    override_field_value(&mut first.one_off_vs_ongoing, duration);
+    if let Some(v) = payment_methods {
+        first.payment_methods.value = Some(v);
+        applied = true;
+    }
+    if let Some(v) = requirements {
+        first.requirements.value = Some(v);
+        applied = true;
+    }
+    if first.pay_model.value.is_some()
+        || first.pay_rate_min.value.is_some()
+        || first.pay_rate_max.value.is_some()
+        || first.currency.value.is_some()
+        || first.min_hours_per_week.value.is_some()
+    {
+        applied = true;
+    }
+
+    Ok(applied)
 }
 
 fn parse_title_apply_from_raw_html(bundle: &FixtureBundle) -> Result<Option<Vec<OpportunityDraft>>, AdapterError> {
-    let Some(html_text) = bundle.raw_artifact.inline_text.as_deref() else {
-        return Ok(None);
-    };
-    let document = Html::parse_document(html_text);
-    let h1_sel = Selector::parse("h1").map_err(|e| AdapterError::Message(e.to_string()))?;
-    let link_sel = Selector::parse("a[href]").map_err(|e| AdapterError::Message(e.to_string()))?;
-
-    let title = document
-        .select(&h1_sel)
-        .next()
-        .map(|n| n.text().collect::<String>().trim().to_string())
-        .filter(|s| !s.is_empty())
-        .map(|s| (s.clone(), "h1".to_string(), s));
-    let apply = document
-        .select(&link_sel)
-        .next()
-        .and_then(|n| n.value().attr("href"))
-        .map(|s| (s.to_string(), "a[href]".to_string(), s.to_string()));
-
-    if title.is_none() && apply.is_none() {
-        return Ok(None);
-    }
-
     let mut drafts = bundle_to_drafts(bundle);
-    if apply_title_url_override(bundle, &mut drafts, title, apply).is_none() {
+    if !apply_extended_html_overrides(bundle, &mut drafts)? {
         return Ok(None);
     }
     Ok(Some(drafts))
 }
 
 fn parse_title_apply_from_raw_json(bundle: &FixtureBundle) -> Result<Option<Vec<OpportunityDraft>>, AdapterError> {
-    let Some(text) = bundle.raw_artifact.inline_text.as_deref() else {
-        return Ok(None);
-    };
-    let value: JsonValue = serde_json::from_str(text)
-        .map_err(|e| AdapterError::Message(format!("invalid raw JSON fixture: {e}")))?;
-    let title = value
-        .get("title")
-        .and_then(|v| v.as_str())
-        .map(|s| (s.to_string(), "$.title".to_string(), s.to_string()));
-    let apply = value
-        .get("apply_url")
-        .and_then(|v| v.as_str())
-        .map(|s| (s.to_string(), "$.apply_url".to_string(), s.to_string()));
-
-    if title.is_none() && apply.is_none() {
-        return Ok(None);
-    }
-
     let mut drafts = bundle_to_drafts(bundle);
-    if apply_title_url_override(bundle, &mut drafts, title, apply).is_none() {
+    if !apply_extended_json_overrides(bundle, &mut drafts)? {
         return Ok(None);
     }
     Ok(Some(drafts))
@@ -778,5 +1016,72 @@ mod tests {
         let actual = drafts_to_golden(&drafts, adapter.crawlability());
         let expected = read_snapshot(&expected_snapshot_path("prolific"));
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn raw_html_parser_overrides_description_and_requirements_values() {
+        let adapter = clickworker_adapter();
+        let mut bundle = load_fixture_bundle(fixture_bundle_path("clickworker")).unwrap();
+        let rec = bundle.parsed_records.get_mut(0).unwrap();
+        rec.description.value = Some("WRONG DESCRIPTION".to_string());
+        rec.pay_model.value = Some("fixed".to_string());
+        rec.pay_rate_min.value = Some(99.0);
+        rec.pay_rate_max.value = Some(100.0);
+        rec.currency.value = Some("EUR".to_string());
+        rec.min_hours_per_week.value = Some(99.0);
+        rec.geo_constraints.value = Some("Mars".to_string());
+        rec.payment_methods.value = Some(vec!["Wire".to_string()]);
+        rec.requirements.value = Some(vec!["Wrong".to_string()]);
+
+        let drafts = adapter.parse_listing(&bundle).unwrap();
+        let first = drafts.first().unwrap();
+        assert_eq!(first.description.value.as_deref(), Some("Contribute labeled data for AI systems."));
+        assert_eq!(first.pay_model.value.as_deref(), Some("hourly"));
+        assert_eq!(first.pay_rate_min.value, Some(12.0));
+        assert_eq!(first.pay_rate_max.value, Some(16.0));
+        assert_eq!(first.currency.value.as_deref(), Some("USD"));
+        assert_eq!(first.min_hours_per_week.value, Some(5.0));
+        assert_eq!(
+            first.geo_constraints.value.as_deref(),
+            Some("Global (country-dependent tasks)")
+        );
+        assert_eq!(first.payment_methods.value.clone().unwrap(), vec!["PayPal".to_string()]);
+        assert_eq!(
+            first.requirements.value.clone().unwrap(),
+            vec!["Smartphone".to_string(), "English".to_string()]
+        );
+    }
+
+    #[test]
+    fn raw_json_parser_overrides_manual_prolific_values() {
+        let adapter = prolific_manual_adapter();
+        let mut bundle = load_manual_fixture_bundle(manual_fixture_bundle_path("prolific")).unwrap();
+        let rec = bundle.parsed_records.get_mut(0).unwrap();
+        rec.description.value = Some("WRONG".to_string());
+        rec.pay_model.value = Some("hourly".to_string());
+        rec.pay_rate_min.value = Some(1.0);
+        rec.pay_rate_max.value = Some(2.0);
+        rec.currency.value = Some("GBP".to_string());
+        rec.verification_requirements.value = Some("Wrong verification".to_string());
+        rec.geo_constraints.value = Some("CA".to_string());
+        rec.one_off_vs_ongoing.value = Some("ongoing".to_string());
+        rec.payment_methods.value = Some(vec!["WrongPay".to_string()]);
+        rec.requirements.value = Some(vec!["WrongReq".to_string()]);
+
+        let drafts = adapter.parse_listing(&bundle).unwrap();
+        let first = drafts.first().unwrap();
+        assert_eq!(first.description.value.as_deref(), Some("Manual ingestion of a gated study listing."));
+        assert_eq!(first.pay_model.value.as_deref(), Some("fixed"));
+        assert_eq!(first.pay_rate_min.value, Some(6.0));
+        assert_eq!(first.pay_rate_max.value, Some(6.0));
+        assert_eq!(first.currency.value.as_deref(), Some("USD"));
+        assert_eq!(first.verification_requirements.value.as_deref(), Some("Prolific account"));
+        assert_eq!(first.geo_constraints.value.as_deref(), Some("US"));
+        assert_eq!(first.one_off_vs_ongoing.value.as_deref(), Some("one_off"));
+        assert_eq!(
+            first.payment_methods.value.clone().unwrap(),
+            vec!["Prolific payout".to_string()]
+        );
+        assert_eq!(first.requirements.value.clone().unwrap(), vec!["Age 18+".to_string()]);
     }
 }

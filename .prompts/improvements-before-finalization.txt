@@ -1,4 +1,23 @@
 ---
+Timestamp: 2026-02-25T06:58:56-0600
+Summary: Expanded raw parser coverage across the initial adapters beyond `title`/`apply_url` by parsing additional HTML/JSON fields (description, pay/currency, hours, geo, duration, payment methods, requirements) and added focused tests proving raw values override fixture `parsed_records`. Also fixed manual Prolific raw hydration by hydrating `raw_artifact.path` and adding the missing raw JSON file under `manual/prolific/raw/`.
+Top 10 issues found:
+- P2: Scheduler mode remains minimally hardened (no run locks/metrics/retry policy).
+- P3: CI still does not explicitly smoke-test CLI wrappers (`rhof-cli migrate`, `rhof-cli sync`) even though library-level DB integration tests are enforced.
+- P3: Raw parser evidence metadata remains fixture-derived; selector drift/layout-variant tests are still limited.
+- P3: Formal report JSON schema docs are still missing.
+- P3: Formal Parquet schema docs are still missing.
+- P3: `sample-source` generator artifacts remain in-tree and may confuse contributors.
+- P3: Root `LICENSE` file is still missing.
+- P3: Changelog/release checklist is still missing.
+- P3: Tailwind installer script would benefit from checksum verification.
+- P3: README/runbook could use a small operational-modes matrix.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `crates/rhof-adapters/src/lib.rs` :: expanded raw HTML/JSON value extraction and override logic (description/pay/hours/geo/duration/payments/requirements) while preserving evidence metadata; manual fixture loader now hydrates `raw_artifact.path`; added focused raw override tests :: improves parser realism without snapshot churn
+- `fixtures/appen-crowdgen/sample/raw/listing.html`, `fixtures/clickworker/sample/raw/listing.html`, `fixtures/oneforma-jobs/sample/raw/listing.html`, `fixtures/telus-ai-community/sample/raw/listing.html` :: enriched HTML fixtures with structured fields/classes used by raw parser :: enables broader HTML extraction coverage
+- `fixtures/prolific/sample/raw/study.json`, `manual/prolific/raw/study.json` :: enriched/raw JSON fixture added for manual Prolific ingestion :: enables broader JSON extraction coverage and raw hydration for manual mode
+- `POST_FLIGHT_REPORT.md` :: refreshed completeness/priority narrative after parser-depth improvement and updated test count/next steps :: keeps audit aligned with current repo state
+---
 Timestamp: 2026-02-23T22:39:48-0600
 Summary: Implemented the next highest-leverage systems-completeness item: a DB-backed `rhof-sync` integration test covering migration execution plus repeated sync idempotency (`sync -> sync` yields no new versions for unchanged fixture data), and added an explicit CI step to run it under the existing Postgres service job. Re-validated with targeted `rhof-sync` test and `cargo test --workspace`.
 Top 10 issues found:
