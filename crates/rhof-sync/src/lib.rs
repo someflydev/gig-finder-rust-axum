@@ -3,8 +3,9 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use arrow_array::{BooleanArray, Float64Array, RecordBatch, StringArray, UInt32Array};
@@ -57,6 +58,8 @@ pub struct SyncConfig {
     pub scheduler_enabled: bool,
     pub sync_cron_1: String,
     pub sync_cron_2: String,
+    pub scheduler_max_retries: u32,
+    pub scheduler_retry_backoff_secs: u64,
     pub user_agent: String,
     pub http_timeout_secs: u64,
     pub workspace_root: PathBuf,
@@ -75,6 +78,14 @@ impl SyncConfig {
                 .unwrap_or(false),
             sync_cron_1: std::env::var("SYNC_CRON_1").unwrap_or_else(|_| "0 6 * * *".to_string()),
             sync_cron_2: std::env::var("SYNC_CRON_2").unwrap_or_else(|_| "0 18 * * *".to_string()),
+            scheduler_max_retries: std::env::var("RHOF_SCHEDULER_MAX_RETRIES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2),
+            scheduler_retry_backoff_secs: std::env::var("RHOF_SCHEDULER_RETRY_BACKOFF_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
             user_agent: std::env::var("RHOF_USER_AGENT")
                 .unwrap_or_else(|_| "rhof-bot/0.1".to_string()),
             http_timeout_secs: std::env::var("RHOF_HTTP_TIMEOUT_SECS")
@@ -529,24 +540,32 @@ impl SyncPipeline {
         }
 
         let sched = JobScheduler::new().await.context("creating scheduler")?;
+        let scheduler_run_in_progress = Arc::new(AtomicBool::new(false));
         for cron in [&self.config.sync_cron_1, &self.config.sync_cron_2] {
             let cfg = self.config.clone();
+            let cron_expr = cron.to_string();
+            let scheduler_run_in_progress = Arc::clone(&scheduler_run_in_progress);
             let job = Job::new_async(cron, move |_uuid, _l| {
                 let cfg = cfg.clone();
+                let cron_expr = cron_expr.clone();
+                let scheduler_run_in_progress = Arc::clone(&scheduler_run_in_progress);
                 Box::pin(async move {
-                    match run_sync_once_with_config(cfg).await {
-                        Ok(summary) => {
-                            info!(
-                                run_id = %summary.run_id,
-                                sources = summary.enabled_sources,
-                                drafts = summary.parsed_drafts,
-                                "scheduler sync completed"
-                            );
-                        }
-                        Err(err) => {
-                            warn!(error = %err, "scheduler sync failed");
-                        }
+                    if scheduler_run_in_progress
+                        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                        .is_err()
+                    {
+                        warn!(cron = %cron_expr, "scheduler trigger skipped because a prior sync is still running");
+                        return;
                     }
+
+                    let scheduled_started = Instant::now();
+                    info!(cron = %cron_expr, "scheduler sync triggered");
+                    let result = run_sync_once_with_scheduler_retries(cfg.clone(), &cron_expr).await;
+                    let elapsed_ms = scheduled_started.elapsed().as_millis() as u64;
+                    if let Err(err) = result {
+                        warn!(cron = %cron_expr, elapsed_ms, error = %err, "scheduler sync failed after retries");
+                    }
+                    scheduler_run_in_progress.store(false, Ordering::Release);
                 })
             })
             .with_context(|| format!("creating scheduler job for cron {cron}"))?;
@@ -1228,6 +1247,68 @@ impl SyncPipeline {
     }
 }
 
+fn scheduler_retry_backoff(base_secs: u64, retry_index: u32) -> Duration {
+    let base = base_secs.max(1);
+    let exp = retry_index.min(6);
+    let factor = 1u64 << exp;
+    Duration::from_secs(base.saturating_mul(factor))
+}
+
+async fn run_sync_once_with_scheduler_retries(
+    cfg: SyncConfig,
+    cron_expr: &str,
+) -> Result<SyncRunSummary> {
+    let attempts_total = cfg.scheduler_max_retries.saturating_add(1).max(1);
+    let overall_started = Instant::now();
+    for attempt in 1..=attempts_total {
+        let attempt_started = Instant::now();
+        match run_sync_once_with_config(cfg.clone()).await {
+            Ok(summary) => {
+                info!(
+                    cron = %cron_expr,
+                    attempt,
+                    attempts_total,
+                    attempt_elapsed_ms = attempt_started.elapsed().as_millis() as u64,
+                    total_elapsed_ms = overall_started.elapsed().as_millis() as u64,
+                    run_id = %summary.run_id,
+                    sources = summary.enabled_sources,
+                    drafts = summary.parsed_drafts,
+                    versions = summary.persisted_versions,
+                    "scheduler sync completed"
+                );
+                return Ok(summary);
+            }
+            Err(err) if attempt < attempts_total => {
+                let retry_index = attempt - 1;
+                let backoff = scheduler_retry_backoff(cfg.scheduler_retry_backoff_secs, retry_index);
+                warn!(
+                    cron = %cron_expr,
+                    attempt,
+                    attempts_total,
+                    attempt_elapsed_ms = attempt_started.elapsed().as_millis() as u64,
+                    backoff_secs = backoff.as_secs(),
+                    error = %err,
+                    "scheduler sync attempt failed; retrying"
+                );
+                tokio::time::sleep(backoff).await;
+            }
+            Err(err) => {
+                warn!(
+                    cron = %cron_expr,
+                    attempt,
+                    attempts_total,
+                    attempt_elapsed_ms = attempt_started.elapsed().as_millis() as u64,
+                    total_elapsed_ms = overall_started.elapsed().as_millis() as u64,
+                    error = %err,
+                    "scheduler sync attempt failed; retries exhausted"
+                );
+                return Err(err);
+            }
+        }
+    }
+    unreachable!("scheduler retry loop always returns");
+}
+
 pub async fn run_sync_once_with_config(config: SyncConfig) -> Result<SyncRunSummary> {
     let enrichment = YamlRuleEnrichmentHook::from_workspace_root(&config.workspace_root)?;
     let dedup = DedupHookEngine::new(DedupEngine::new(DedupConfig::default()));
@@ -1289,12 +1370,14 @@ pub fn debug_summary_from_env() -> Result<String> {
     let reports_md = report_daily_markdown(3, Some(cfg.workspace_root.clone()))
         .unwrap_or_else(|e| format!("(report summary unavailable: {e})"));
     Ok(format!(
-        "RHOF Debug Summary\n\n- DATABASE_URL: {}\n- ARTIFACTS_DIR: {}\n- RHOF_SCHEDULER_ENABLED: {}\n- SYNC_CRON_1: {}\n- SYNC_CRON_2: {}\n- RHOF_HTTP_TIMEOUT_SECS: {}\n- RHOF_USER_AGENT: {}\n\n{}",
+        "RHOF Debug Summary\n\n- DATABASE_URL: {}\n- ARTIFACTS_DIR: {}\n- RHOF_SCHEDULER_ENABLED: {}\n- SYNC_CRON_1: {}\n- SYNC_CRON_2: {}\n- RHOF_SCHEDULER_MAX_RETRIES: {}\n- RHOF_SCHEDULER_RETRY_BACKOFF_SECS: {}\n- RHOF_HTTP_TIMEOUT_SECS: {}\n- RHOF_USER_AGENT: {}\n\n{}",
         cfg.database_url,
         cfg.artifacts_dir.display(),
         cfg.scheduler_enabled,
         cfg.sync_cron_1,
         cfg.sync_cron_2,
+        cfg.scheduler_max_retries,
+        cfg.scheduler_retry_backoff_secs,
         cfg.http_timeout_secs,
         cfg.user_agent,
         reports_md
@@ -1749,6 +1832,16 @@ mod tests {
         assert!(review[0].confidence_score >= 0.88);
     }
 
+    #[test]
+    fn scheduler_backoff_is_exponential_and_capped() {
+        assert_eq!(scheduler_retry_backoff(5, 0), Duration::from_secs(5));
+        assert_eq!(scheduler_retry_backoff(5, 1), Duration::from_secs(10));
+        assert_eq!(scheduler_retry_backoff(5, 2), Duration::from_secs(20));
+        assert_eq!(scheduler_retry_backoff(5, 6), Duration::from_secs(320));
+        assert_eq!(scheduler_retry_backoff(5, 9), Duration::from_secs(320));
+        assert_eq!(scheduler_retry_backoff(0, 0), Duration::from_secs(1));
+    }
+
     #[tokio::test]
     async fn db_migrate_and_repeated_sync_are_idempotent() {
         let db_url = "postgres://rhof:rhof@localhost:5401/rhof";
@@ -1800,6 +1893,8 @@ mod tests {
             scheduler_enabled: false,
             sync_cron_1: "0 6 * * *".to_string(),
             sync_cron_2: "0 18 * * *".to_string(),
+            scheduler_max_retries: 2,
+            scheduler_retry_backoff_secs: 1,
             user_agent: "rhof-sync-test/0.1".to_string(),
             http_timeout_secs: 5,
             workspace_root: root.clone(),

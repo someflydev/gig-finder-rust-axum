@@ -937,6 +937,8 @@ mod tests {
             scheduler_enabled: false,
             sync_cron_1: "0 6 * * *".to_string(),
             sync_cron_2: "0 18 * * *".to_string(),
+            scheduler_max_retries: 2,
+            scheduler_retry_backoff_secs: 1,
             user_agent: "rhof-web-test/0.1".to_string(),
             http_timeout_secs: 5,
             workspace_root: root.clone(),
