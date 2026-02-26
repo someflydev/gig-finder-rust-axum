@@ -1,4 +1,23 @@
 ---
+Timestamp: 2026-02-25T12:20:08-0600
+Summary: Hardened scheduler execution in `rhof-sync` with single-process overlap prevention, bounded retry/backoff, and richer per-attempt logging. Added scheduler backoff unit coverage, surfaced new scheduler retry knobs in `SyncConfig::from_env`/debug summary, and documented the env knobs in `.env.example`. Re-validated with `cargo test -p rhof-sync` and `cargo test --workspace` (including DB-backed integration tests).
+Top 10 issues found:
+- P3: CI still does not explicitly smoke-test CLI wrappers (`rhof-cli migrate`, `rhof-cli sync`) even though library-level DB integration tests are enforced.
+- P3: Scheduler still lacks explicit health/metrics/status reporting (last-success/failure counters, skipped-overlap counts).
+- P3: Raw parser evidence metadata remains fixture-derived; selector drift/layout-variant tests are still limited.
+- P3: Formal report JSON schema docs are still missing.
+- P3: Formal Parquet schema docs are still missing.
+- P3: `sample-source` generator artifacts remain in-tree and may confuse contributors.
+- P3: Root `LICENSE` file is still missing.
+- P3: Changelog/release checklist is still missing.
+- P3: Tailwind installer script would benefit from checksum verification.
+- P3: README/runbook could use a small operational-modes matrix.
+If you applied any fixes during this run, list them with file paths + brief diff-style notes:
+- `crates/rhof-sync/src/lib.rs` :: + scheduler overlap-skip guard (`AtomicBool`) + retry/backoff execution wrapper + per-attempt logging; + scheduler backoff unit test; + debug summary prints scheduler retry knobs :: improves unattended scheduler reliability without changing core sync semantics
+- `crates/rhof-web/src/lib.rs` :: updated `SyncConfig` literal in DB-backed integration test for new scheduler config fields :: compile compatibility
+- `.env.example` :: added `RHOF_SCHEDULER_MAX_RETRIES` and `RHOF_SCHEDULER_RETRY_BACKOFF_SECS` defaults :: makes new scheduler knobs discoverable
+- `POST_FLIGHT_REPORT.md` :: refreshed score/issues/next-steps after scheduler hardening round :: keeps audit priorities accurate
+---
 Timestamp: 2026-02-25T06:58:56-0600
 Summary: Expanded raw parser coverage across the initial adapters beyond `title`/`apply_url` by parsing additional HTML/JSON fields (description, pay/currency, hours, geo, duration, payment methods, requirements) and added focused tests proving raw values override fixture `parsed_records`. Also fixed manual Prolific raw hydration by hydrating `raw_artifact.path` and adding the missing raw JSON file under `manual/prolific/raw/`.
 Top 10 issues found:
